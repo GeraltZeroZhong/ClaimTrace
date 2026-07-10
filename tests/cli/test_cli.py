@@ -1,6 +1,7 @@
 import json
-from pathlib import Path
+import re
 import zipfile
+from pathlib import Path
 
 from typer.testing import CliRunner
 
@@ -586,7 +587,9 @@ def test_cli_hidden_compatibility_no_input_and_multiline_epilog(tmp_path: Path):
     assert init_help.exit_code == 0 and export_help.exit_code == 0
     assert "--no-input" not in init_help.stdout
     assert "--no-input" not in export_help.stdout
-    assert 'claimtrace init --native "figure_A.pml"' in init_help.stdout
+    plain_help = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", init_help.stdout)
+    normalized_help = " ".join(plain_help.split())
+    assert 'claimtrace init --native "figure_A.pml"' in normalized_help
 
     script = tmp_path / "scene.pml"
     script.write_text("show cartoon\n", encoding="utf-8")
