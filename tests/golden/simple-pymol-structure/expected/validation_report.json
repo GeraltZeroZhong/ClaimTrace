@@ -1,0 +1,12 @@
+{
+  "overall_status": "pass",
+  "summary": {
+    "errors": 0
+  },
+  "required_sections": [
+    "claim_traceability_matrix",
+    "artifact_fixity",
+    "unresolved_list",
+    "native_inference_limits"
+  ]
+}

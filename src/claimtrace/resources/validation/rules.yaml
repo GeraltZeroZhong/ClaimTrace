@@ -1,0 +1,138 @@
+- rule_id: G0.PARSEABLE
+  title: semantic_layer.json can be read and uses a supported schema version
+  gate: G0_PARSEABLE
+  severity: ERROR
+  finding_class: INTEGRITY_ERROR
+  validation_level: L0_PACKAGE_INTEGRITY
+  blocks_modes: [draft, internal, share, archive]
+  waivable: false
+- rule_id: G1.SCHEMA
+  title: semantic_layer.json matches the ClaimTrace schema
+  gate: G1_SCHEMA
+  severity: ERROR
+  finding_class: INTEGRITY_ERROR
+  validation_level: L0_PACKAGE_INTEGRITY
+  blocks_modes: [draft, internal, share, archive]
+  waivable: false
+- rule_id: G2.FIXITY
+  title: Local files have package-safe paths and matching checksums
+  gate: G2_FIXITY
+  severity: ERROR
+  finding_class: INTEGRITY_ERROR
+  validation_level: L0_PACKAGE_INTEGRITY
+  blocks_modes: [draft, internal, share, archive]
+  waivable: false
+- rule_id: G3.REFERENCE
+  title: Internal links point to objects in this package
+  gate: G3_REFERENCE
+  severity: ERROR
+  finding_class: INTEGRITY_ERROR
+  validation_level: L0_PACKAGE_INTEGRITY
+  blocks_modes: [draft, internal, share, archive]
+  waivable: false
+- rule_id: CLAIM.BASIC.REVIEWABLE
+  title: Claims include figure/panel, scene and evidence links
+  gate: G4_CLAIM_RULES
+  severity: ERROR
+  finding_class: REVIEWABILITY_ERROR
+  validation_level: L1_SEMANTIC_LINKABILITY
+  blocks_modes: [share, archive]
+  waivable: true
+- rule_id: CLAIM.LIGAND.REQUIRED_CONTACTS
+  title: Ligand binding claim includes structured contact/distance or external validation evidence
+  gate: G4B_EVIDENCE_MINIMUMS
+  severity: ERROR
+  finding_class: CLAIM_EVIDENCE_ERROR
+  validation_level: L3_CLAIM_EVIDENCE
+  blocks_modes: [share, archive]
+  applies_when: claim_type == "ligand_binding_pose"
+  suggested_fix: Link the structure and a contact table or measured distances with method/cutoff, or link a relevant validation report.
+  waivable: true
+- rule_id: SCENE.HIDDEN.CRITICAL_REASON
+  title: Figure-central hidden entities include a reason
+  gate: G5_VISIBILITY
+  severity: ERROR
+  finding_class: DISCLOSURE_WARNING
+  validation_level: L2_VISUAL_REPRODUCIBILITY
+  blocks_modes: [archive]
+  waivable: true
+- rule_id: IMPORT.CXC.RAW_AFFECTS_SCENE
+  title: Raw or dynamic ChimeraX content has author review when it may affect a scene
+  gate: G6_NATIVE_STATIC_IMPORT
+  severity: ERROR
+  finding_class: REVIEWABILITY_ERROR
+  validation_level: L2_VISUAL_REPRODUCIBILITY
+  blocks_modes: [archive]
+  waivable: true
+- rule_id: IMPORT.PYMOL.RAW_AFFECTS_SCENE
+  title: Raw or dynamic PyMOL content has author review when it may affect a scene
+  gate: G6_NATIVE_STATIC_IMPORT
+  severity: ERROR
+  finding_class: REVIEWABILITY_ERROR
+  validation_level: L2_VISUAL_REPRODUCIBILITY
+  blocks_modes: [archive]
+  waivable: true
+- rule_id: IMPORT.NATIVE.RAW_AFFECTS_SCENE
+  title: Raw native content has author review when it may affect a scene
+  gate: G6_NATIVE_STATIC_IMPORT
+  severity: ERROR
+  finding_class: REVIEWABILITY_ERROR
+  validation_level: L2_VISUAL_REPRODUCIBILITY
+  blocks_modes: [archive]
+  waivable: true
+- rule_id: IMPORT.MVS.UNKNOWN_NODE
+  title: Unknown or invalid MolViewSpec nodes are preserved with author review
+  gate: G6_NATIVE_STATIC_IMPORT
+  severity: ERROR
+  finding_class: REVIEWABILITY_ERROR
+  validation_level: L2_VISUAL_REPRODUCIBILITY
+  blocks_modes: [archive]
+  waivable: true
+- rule_id: SCENE.MOLECULAR_IDENTITY_UNCONFIRMED
+  title: Figure-central native references include molecular identity
+  gate: G6_NATIVE_STATIC_IMPORT
+  severity: ERROR
+  finding_class: REVIEWABILITY_ERROR
+  validation_level: L1_SEMANTIC_LINKABILITY
+  blocks_modes: [share, archive]
+  waivable: true
+- rule_id: SCENE.TARGET_RESOLUTION_INCOMPLETE
+  title: Figure-central selectors and native refs are matched to package files
+  gate: G6_NATIVE_STATIC_IMPORT
+  severity: ERROR
+  finding_class: REVIEWABILITY_ERROR
+  validation_level: L1_SEMANTIC_LINKABILITY
+  blocks_modes: [archive]
+  waivable: true
+- rule_id: SCENE.VISUAL_ENCODING.MEANING_MISSING
+  title: Figure-central or uncertain visual encodings are confirmed or marked presentation-only
+  gate: G6_NATIVE_STATIC_IMPORT
+  severity: ERROR
+  finding_class: REVIEWABILITY_ERROR
+  validation_level: L2_VISUAL_REPRODUCIBILITY
+  blocks_modes: [archive]
+  waivable: true
+- rule_id: IMPORT.REMOTE_RESOURCE_DETACHED
+  title: Figure-central detached native resources include fixity or a recorded reason
+  gate: G6_NATIVE_STATIC_IMPORT
+  severity: ERROR
+  finding_class: DISCLOSURE_WARNING
+  validation_level: L0_PACKAGE_INTEGRITY
+  blocks_modes: [archive]
+  waivable: true
+- rule_id: IMPORT.MVSX.MEMBER_MISSING
+  title: Referenced MVSX members exist inside the archive
+  gate: G6_NATIVE_STATIC_IMPORT
+  severity: ERROR
+  finding_class: DISCLOSURE_WARNING
+  validation_level: L0_PACKAGE_INTEGRITY
+  blocks_modes: [archive]
+  waivable: true
+- rule_id: SECURITY.PATH.PRIVACY
+  title: Package paths and free text are share-safe
+  gate: G7_EXPORT_READY
+  severity: ERROR
+  finding_class: SECURITY_BLOCKER
+  validation_level: L0_PACKAGE_INTEGRITY
+  blocks_modes: [share, archive]
+  waivable: false

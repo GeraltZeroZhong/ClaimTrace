@@ -1,0 +1,10 @@
+case: simple-pymol-structure
+input:
+  native: examples/simple-pymol-structure/figure_A.pml
+  image: examples/simple-pymol-structure/figure_A.png
+  answers: examples/simple-pymol-structure/answers.yml
+expected:
+  exit_code: 0
+  facts_minimum: 4
+  claim_type: simple_structure_view
+  validation_status: pass

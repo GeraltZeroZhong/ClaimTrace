@@ -1,0 +1,278 @@
+{
+  "$defs": {
+    "SemanticLayerRef": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "default": "semantic_layer.json",
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sha256",
+        "schema_version"
+      ],
+      "title": "SemanticLayerRef",
+      "type": "object"
+    },
+    "ValidationFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "rule_id": {
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "gate": {
+          "title": "Gate",
+          "type": "string"
+        },
+        "validation_level": {
+          "title": "Validation Level",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "ERROR",
+            "WARNING",
+            "INFO"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "finding_class": {
+          "title": "Finding Class",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "WAIVED",
+            "NOT_APPLICABLE"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "json_pointer": {
+          "default": "",
+          "title": "Json Pointer",
+          "type": "string"
+        },
+        "blocks_modes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Blocks Modes",
+          "type": "array"
+        },
+        "claim_critical": {
+          "default": false,
+          "title": "Claim Critical",
+          "type": "boolean"
+        },
+        "waivable": {
+          "default": false,
+          "title": "Waivable",
+          "type": "boolean"
+        },
+        "suggested_fix": {
+          "default": "",
+          "title": "Suggested Fix",
+          "type": "string"
+        },
+        "waiver_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Waiver Id"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "rule_id",
+        "gate",
+        "validation_level",
+        "severity",
+        "finding_class",
+        "status",
+        "message"
+      ],
+      "title": "ValidationFinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "report_schema_version": {
+      "default": "0.1.0",
+      "title": "Report Schema Version",
+      "type": "string"
+    },
+    "package_id": {
+      "title": "Package Id",
+      "type": "string"
+    },
+    "semantic_layer_ref": {
+      "$ref": "#/$defs/SemanticLayerRef"
+    },
+    "validated_at": {
+      "title": "Validated At",
+      "type": "string"
+    },
+    "validator_version": {
+      "default": "0.1.0",
+      "title": "Validator Version",
+      "type": "string"
+    },
+    "export_mode": {
+      "default": "draft",
+      "title": "Export Mode",
+      "type": "string"
+    },
+    "overall_status": {
+      "default": "needs_review",
+      "enum": [
+        "pass",
+        "pass_with_warnings",
+        "fail",
+        "needs_review"
+      ],
+      "title": "Overall Status",
+      "type": "string"
+    },
+    "scope_statement": {
+      "default": "This report checks package completeness, consistency, and share readiness. Scientific support is supplied by the attached evidence files and notes.",
+      "title": "Scope Statement",
+      "type": "string"
+    },
+    "validation_levels": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Validation Levels",
+      "type": "array"
+    },
+    "summary": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Summary",
+      "type": "object"
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/ValidationFinding"
+      },
+      "title": "Findings",
+      "type": "array"
+    },
+    "claim_traceability_matrix": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Claim Traceability Matrix",
+      "type": "array"
+    },
+    "artifact_fixity": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Artifact Fixity",
+      "type": "array"
+    },
+    "entity_evidence_matrix": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Entity Evidence Matrix",
+      "type": "array"
+    },
+    "unresolved_list": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Unresolved List",
+      "type": "array"
+    },
+    "native_inference_limits": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Native Inference Limits",
+      "type": "array"
+    },
+    "evidence_minimums_by_profile": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Evidence Minimums By Profile",
+      "type": "array"
+    },
+    "human_review_required": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Human Review Required",
+      "type": "array"
+    },
+    "visual_context_audit": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Visual Context Audit",
+      "type": "array"
+    },
+    "waiver_list": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Waiver List",
+      "type": "array"
+    },
+    "revalidation": {
+      "additionalProperties": true,
+      "title": "Revalidation",
+      "type": "object"
+    }
+  },
+  "required": [
+    "package_id",
+    "semantic_layer_ref"
+  ],
+  "title": "ClaimTrace validation_report.json",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://claimtrace.org/schema/validation-report.schema.json"
+}
