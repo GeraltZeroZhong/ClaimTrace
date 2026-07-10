@@ -1,0 +1,29 @@
+package:
+  title: Static image only example
+  creator: ClaimTrace example author
+  license: CC-BY-4.0
+  profile: static-figure-only
+claim:
+  claim_text: Figure S1 is a static molecular illustration requiring author-provided evidence.
+  claim_type: unknown
+  figure_ref: Figure S1
+  scope: panel
+  review_status: confirmed
+evidence:
+  - evidence_kind: manual_rationale
+    method_name: Author statement
+    result_summary: The static image is included for fixity; underlying native viewer state is unavailable.
+    source_artifact_roles:
+      - render_image
+    review_status: confirmed
+scene:
+  color_meanings: {}
+  label_meanings: {}
+  notes: Static image colors and labels require author interpretation because no native script is available.
+uncertainty:
+  category: reproducibility
+  statement: No native script was provided, so visual replay is not available.
+  review_status: confirmed
+reuse:
+  license: CC-BY-4.0
+  citation: ClaimTrace synthetic static-image example.

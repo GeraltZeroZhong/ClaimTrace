@@ -1,0 +1,45 @@
+package:
+  title: Simple PyMOL structure example
+  creator: ClaimTrace example author
+  license: CC-BY-4.0
+  profile: simple-structure-view
+claim:
+  claim_text: Figure 1A presents a simple cartoon view of the example model.
+  claim_type: simple_structure_view
+  figure_ref: Figure 1A
+  scope: panel
+  review_status: confirmed
+artifacts:
+  - path: model.cif
+    role: structure
+evidence:
+  - evidence_kind: manual_rationale
+    method_name: Author visual review
+    result_summary: The native PyMOL script, rendered image and mmCIF model are provided for review.
+    source_artifact_roles:
+      - native_script
+      - render_image
+      - structure
+    review_status: confirmed
+scene:
+  color_meanings: {}
+  label_meanings: {}
+  notes: No scientific category is implied by the cyan coloring in this example.
+uncertainty:
+  category: scope
+  statement: This example asserts only that a structure view is presented; it does not assert mechanism or binding.
+  review_status: confirmed
+software:
+  - name: PyMOL
+    version: unknown
+    role: viewer
+reuse:
+  license: CC-BY-4.0
+  citation: ClaimTrace synthetic example.
+answer_schema: claimtrace.native_scene_answers.v1
+scene_semantics_by_operation:
+  - operation_ids:
+      - op:pymol:a933e83b9262
+    encoding_type: colored
+    meaning_status: user_declared_no_scientific_meaning
+    no_scientific_meaning_reason: cyan is neutral model coloring for visual contrast

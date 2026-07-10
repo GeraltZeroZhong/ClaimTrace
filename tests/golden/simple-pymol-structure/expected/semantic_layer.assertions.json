@@ -1,0 +1,10 @@
+{
+  "schema_version": "0.1.0",
+  "claim_type": "simple_structure_view",
+  "required_artifact_roles": [
+    "native_script",
+    "render_image",
+    "structure"
+  ],
+  "expected_validation_status": "pass"
+}

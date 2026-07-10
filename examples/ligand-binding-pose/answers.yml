@@ -1,0 +1,63 @@
+package:
+  title: Ligand binding pose example
+  creator: ClaimTrace example author
+  license: CC-BY-4.0
+  profile: ligand-binding-pose
+claim:
+  claim_text: Ligand LIG occupies the example pocket near residue ALA10.
+  claim_type: ligand_binding_pose
+  figure_ref: Figure 2A
+  scope: panel
+  review_status: confirmed
+artifacts:
+  - path: model.cif
+    role: structure
+  - path: contacts.csv
+    role: contact_table
+entities:
+  - id: entity:ligand:LIG
+    entity_type: ligand
+    label: LIG
+    stable_identity: model.cif:resn LIG
+    claim_critical: true
+    review_status: confirmed
+  - id: entity:residue:A:10
+    entity_type: residue
+    label: ALA10
+    stable_identity: model.cif:chain A residue 10
+    claim_critical: true
+    review_status: confirmed
+evidence:
+  - evidence_kind: contact_table
+    method_name: Synthetic contact table
+    thresholds:
+      distance: 4.0
+    units:
+      distance: angstrom
+    result_summary: The table lists one ligand-pocket distance under the declared threshold.
+    source_artifact_roles:
+      - contact_table
+      - structure
+    target_entity_ids:
+      - entity:ligand:LIG
+      - entity:residue:A:10
+    review_status: confirmed
+scene:
+  color_meanings: {}
+  label_meanings: {}
+  notes: Automatically observed display and distance commands are native observations; the ligand color meaning is author-confirmed below.
+uncertainty:
+  category: alternative_pose
+  statement: This synthetic fixture does not evaluate alternative ligand poses or solvent context.
+  review_status: confirmed
+reuse:
+  license: CC-BY-4.0
+  citation: ClaimTrace synthetic ligand example.
+answer_schema: claimtrace.native_scene_answers.v1
+scene_semantics_by_operation:
+  - operation_ids:
+      - op:pymol:9203f9b2435b
+    encoding_type: colored
+    meaning_status: user_confirmed_meaning
+    claim_critical: true
+    meaning: magenta highlights the ligand that is claim-critical in this panel

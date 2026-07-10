@@ -1,0 +1,41 @@
+package:
+  title: Golden simple PyMOL structure
+  creator: ClaimTrace test suite
+  license: CC-BY-4.0
+  profile: simple-structure-view
+claim:
+  claim_text: Golden Figure 1A presents a simple cartoon view.
+  claim_type: simple_structure_view
+  figure_ref: Figure 1A
+  scope: panel
+  review_status: confirmed
+artifacts:
+  - path: model.cif
+    role: structure
+evidence:
+  - evidence_kind: manual_rationale
+    method_name: Golden author review
+    result_summary: Native script, structure and render are available.
+    source_artifact_roles:
+      - native_script
+      - render_image
+      - structure
+    review_status: confirmed
+scene:
+  color_meanings: {}
+  label_meanings: {}
+  notes: The color has no asserted functional meaning in this fixture.
+uncertainty:
+  category: scope
+  statement: No mechanism is asserted.
+  review_status: confirmed
+reuse:
+  license: CC-BY-4.0
+  citation: ClaimTrace golden fixture.
+answer_schema: claimtrace.native_scene_answers.v1
+scene_semantics_by_operation:
+  - operation_ids:
+      - op:pymol:4854fa19281f
+    encoding_type: colored
+    meaning_status: user_declared_no_scientific_meaning
+    no_scientific_meaning_reason: cyan is neutral model coloring for visual contrast

@@ -1,0 +1,1870 @@
+"""Validation engine for ClaimTrace packages."""
+
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+import jsonschema
+
+from claimtrace.constants import CAL_SCHEMA_VERSION, SEMANTIC_LAYER_FILENAME
+from claimtrace.models import SemanticLayer
+from claimtrace.models.semantic_layer import (
+    ArtifactKind,
+    ClaimCriticalStatus,
+    ClaimType,
+    EvidenceKind,
+    MeaningStatus,
+    ReviewStatus,
+)
+from claimtrace.models.validation import SemanticLayerRef, ValidationFinding, ValidationReport
+from claimtrace.package.checksums import file_size, sha256_file
+from claimtrace.package.layout import load_semantic_layer
+from claimtrace.package.paths import ensure_relative_path, resolve_package_path, safe_walk
+from claimtrace.package.resources import resource_matches_artifact, resource_uri_summary
+from claimtrace.schemas import semantic_layer_schema
+from claimtrace.validation.findings import finding
+from claimtrace.validation.rules import waiver_covers
+
+SECRET_PATTERNS = [
+    re.compile(r"(?i)(api[_-]?key|token|secret)[\"'\s:=]+[A-Za-z0-9_\-]{16,}"),
+    re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
+    re.compile(r"/home/[A-Za-z0-9_.-]+/"),
+    re.compile(r"/Users/[A-Za-z0-9_.-]+/"),
+    re.compile(r"(?i)[A-Z]:[\\/]Users[\\/][^\\/\s]+[\\/]"),
+]
+TEXT_PRIVACY_SUFFIXES = {
+    ".txt", ".md", ".csv", ".tsv", ".json", ".yaml", ".yml",
+    ".pml", ".cxc", ".mvsj", ".py", ".ipynb", ".log",
+}
+MAX_PRIVACY_SCAN_BYTES = 2 * 1024 * 1024
+VALIDATION_MODES = {"draft", "internal", "share", "archive"}
+
+
+def validate_package(root: Path, mode: str = "draft", *, revalidation: dict[str, object] | None = None) -> ValidationReport:
+    if mode not in VALIDATION_MODES:
+        choices = ", ".join(sorted(VALIDATION_MODES))
+        raise ValueError(f"Unknown validation mode: {mode}. Choose one of: {choices}.")
+    root = Path(root)
+    semantic_path = root / SEMANTIC_LAYER_FILENAME
+    findings: list[ValidationFinding] = []
+    if not root.exists() or not semantic_path.exists():
+        semantic_ref = SemanticLayerRef(path=SEMANTIC_LAYER_FILENAME, sha256="", schema_version="unknown")
+        return _report(
+            package_id=root.name,
+            semantic_ref=semantic_ref,
+            mode=mode,
+            findings=[
+                finding(
+                    "G0.PACKAGE.MISSING",
+                    "G0_PARSEABLE",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    f"No ClaimTrace package was found at {root}.",
+                    pointer="/",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix=f"Run `claimtrace init --native <file.pml> --image <figure.png> --out {root}` or check the package path.",
+                )
+            ],
+            semantic=None,
+            root=root,
+            revalidation=revalidation,
+        )
+    try:
+        root_resolved = root.resolve()
+        semantic_resolved = semantic_path.resolve()
+        if not semantic_resolved.is_relative_to(root_resolved):
+            semantic_ref = SemanticLayerRef(path=SEMANTIC_LAYER_FILENAME, sha256="", schema_version="unknown")
+            return _report(
+                package_id=root.name,
+                semantic_ref=semantic_ref,
+                mode=mode,
+                findings=[
+                    finding(
+                        "SECURITY.PATH.TRAVERSAL",
+                        "G2_FIXITY",
+                        "L0_PACKAGE_INTEGRITY",
+                        "ERROR",
+                        "SECURITY_BLOCKER",
+                        "semantic_layer.json must not resolve outside the package directory.",
+                        pointer="/",
+                        blocks=["draft", "internal", "share", "archive"],
+                        fix="Replace the symlink with a package-local semantic_layer.json file.",
+                    )
+                ],
+                semantic=None,
+                root=root,
+                revalidation=revalidation,
+            )
+    except OSError as exc:
+        semantic_ref = SemanticLayerRef(path=SEMANTIC_LAYER_FILENAME, sha256="", schema_version="unknown")
+        return _report(
+            package_id=root.name,
+            semantic_ref=semantic_ref,
+            mode=mode,
+            findings=[
+                finding(
+                    "SECURITY.PATH.TRAVERSAL",
+                    "G2_FIXITY",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "SECURITY_BLOCKER",
+                    f"semantic_layer.json path could not be resolved safely: {exc}",
+                    pointer="/",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Replace the semantic layer path with a regular package-local file.",
+                )
+            ],
+            semantic=None,
+            root=root,
+            revalidation=revalidation,
+        )
+    try:
+        raw = json.loads(semantic_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        semantic_ref = SemanticLayerRef(path=SEMANTIC_LAYER_FILENAME, sha256="", schema_version="unknown")
+        return _report(
+            package_id=root.name,
+            semantic_ref=semantic_ref,
+            mode=mode,
+            findings=[
+                finding(
+                    "G0.PARSEABLE",
+                    "G0_PARSEABLE",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    f"semantic_layer.json cannot be parsed: {exc}",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Write valid JSON and include schema_version.",
+                )
+            ],
+            semantic=None,
+            root=root,
+            revalidation=revalidation,
+        )
+    if not isinstance(raw, dict):
+        semantic_ref = SemanticLayerRef(path=SEMANTIC_LAYER_FILENAME, sha256="", schema_version="unknown")
+        return _report(
+            package_id=root.name,
+            semantic_ref=semantic_ref,
+            mode=mode,
+            findings=[
+                finding(
+                    "G1.SCHEMA",
+                    "G1_SCHEMA",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    "semantic_layer.json must contain a JSON object.",
+                    pointer="/",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Write a ClaimTrace semantic_layer.json object with schema_version and package metadata.",
+                )
+            ],
+            semantic=None,
+            root=root,
+            revalidation=revalidation,
+        )
+    semantic_hash = sha256_file(semantic_path) if semantic_path.exists() else ""
+    schema_version = str(raw.get("schema_version", "unknown"))
+    semantic_ref = SemanticLayerRef(
+        path=SEMANTIC_LAYER_FILENAME,
+        sha256=semantic_hash,
+        schema_version=schema_version,
+    )
+    if schema_version != CAL_SCHEMA_VERSION:
+        findings.append(
+            finding(
+                "G0.PARSEABLE",
+                "G0_PARSEABLE",
+                "L0_PACKAGE_INTEGRITY",
+                "ERROR",
+                "INTEGRITY_ERROR",
+                f"Unsupported schema_version {schema_version}.",
+                pointer="/schema_version",
+                blocks=["draft", "internal", "share", "archive"],
+                fix="Migrate or rewrite the CAL to schema version 0.1.0.",
+            )
+        )
+        semantic = None
+    else:
+        try:
+            jsonschema.Draft202012Validator(semantic_layer_schema()).validate(raw)
+        except jsonschema.ValidationError as exc:
+            findings.append(
+                finding(
+                    "G1.SCHEMA",
+                    "G1_SCHEMA",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    f"JSON Schema validation failed: {exc.message}",
+                    pointer="/" + "/".join(str(part) for part in exc.absolute_path),
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Update semantic_layer.json to match the CAL schema.",
+                )
+            )
+        try:
+            semantic = load_semantic_layer(root)
+        except Exception as exc:
+            findings.append(
+                finding(
+                    "G1.SCHEMA",
+                    "G1_SCHEMA",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    f"Pydantic model validation failed: {exc}",
+                    blocks=["draft", "internal", "share", "archive"],
+                )
+            )
+            semantic = None
+    if semantic is not None:
+        findings.extend(_checksum_manifest_findings(root))
+        findings.extend(_fixity_findings(root, semantic))
+        findings.extend(_reference_findings(semantic))
+        findings.extend(_claim_findings(semantic))
+        findings.extend(_visibility_findings(semantic))
+        findings.extend(_native_scene_anchor_findings(semantic, mode))
+        findings.extend(_privacy_findings(root, semantic, mode))
+        _apply_waivers(findings, semantic, mode)
+    return _report(
+        package_id=semantic.package.package_id if semantic else root.name,
+        semantic_ref=semantic_ref,
+        mode=mode,
+        findings=findings,
+        semantic=semantic,
+        root=root,
+        revalidation=revalidation,
+    )
+
+
+def _fixity_findings(root: Path, semantic: SemanticLayer) -> list[ValidationFinding]:
+    findings: list[ValidationFinding] = []
+    for index, artifact in enumerate(semantic.artifacts):
+        pointer = f"/artifacts/{index}"
+        if artifact.kind == ArtifactKind.remote:
+            if not artifact.sha256:
+                findings.append(
+                    finding(
+                        "G2.FIXITY.REMOTE_UNAVAILABLE",
+                        "G2_FIXITY",
+                        "L0_PACKAGE_INTEGRITY",
+                        "WARNING",
+                        "DISCLOSURE_WARNING",
+                    f"Remote file {artifact.id} is listed without an expected checksum.",
+                        pointer=pointer,
+                        blocks=["archive"],
+                        waivable=True,
+                        fix="Record an expected checksum or a reason for leaving it detached.",
+                    )
+                )
+            continue
+        if not artifact.path:
+            findings.append(
+                finding(
+                    "G2.FIXITY.MISSING_PATH",
+                    "G2_FIXITY",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                        f"Local file {artifact.id} needs a package-relative path.",
+                    pointer=f"{pointer}/path",
+                    blocks=["draft", "internal", "share", "archive"],
+                )
+            )
+            continue
+        try:
+            ensure_relative_path(artifact.path)
+            path = resolve_package_path(root, artifact.path)
+        except Exception as exc:
+            findings.append(
+                finding(
+                    "SECURITY.PATH.TRAVERSAL",
+                    "G2_FIXITY",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "SECURITY_BLOCKER",
+                    f"File path needs to stay inside the package: {exc}",
+                    pointer=f"{pointer}/path",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Use a package-relative path with no .. or absolute prefix.",
+                )
+            )
+            continue
+        if artifact.kind == ArtifactKind.local_detached:
+            if not artifact.sha256:
+                findings.append(
+                    finding(
+                        "G2.FIXITY.DETACHED_UNAVAILABLE",
+                        "G2_FIXITY",
+                        "L0_PACKAGE_INTEGRITY",
+                        "WARNING",
+                        "DISCLOSURE_WARNING",
+                        f"Detached file {artifact.id} is listed without an expected checksum.",
+                        pointer=pointer,
+                        blocks=["archive"],
+                        waivable=True,
+                        fix="Record the expected checksum, attach the file, or record why this file remains detached.",
+                    )
+                )
+            continue
+        if not path.exists():
+            findings.append(
+                finding(
+                    "G2.FIXITY.MISSING_FILE",
+                    "G2_FIXITY",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    f"Package file is missing: {artifact.path}",
+                    pointer=pointer,
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Restore the file at this package path or re-register the artifact.",
+                )
+            )
+            continue
+        if path.is_file():
+            actual_hash = sha256_file(path)
+            actual_size = file_size(path)
+            if artifact.sha256 != actual_hash:
+                findings.append(
+                    finding(
+                        "G2.FIXITY.HASH_MISMATCH",
+                        "G2_FIXITY",
+                        "L0_PACKAGE_INTEGRITY",
+                        "ERROR",
+                        "INTEGRITY_ERROR",
+                        f"File checksum changed for {artifact.path}.",
+                        pointer=f"{pointer}/sha256",
+                        blocks=["draft", "internal", "share", "archive"],
+                        fix="Re-register the artifact or restore the original file.",
+                    )
+                )
+            if artifact.byte_size != actual_size:
+                findings.append(
+                    finding(
+                        "G2.FIXITY.SIZE_MISMATCH",
+                        "G2_FIXITY",
+                        "L0_PACKAGE_INTEGRITY",
+                        "ERROR",
+                        "INTEGRITY_ERROR",
+                        f"File size changed for {artifact.path}.",
+                        pointer=f"{pointer}/byte_size",
+                        blocks=["draft", "internal", "share", "archive"],
+                        fix="Re-register the artifact or restore the original file.",
+                    )
+                )
+    return findings
+
+
+def _checksum_manifest_findings(root: Path) -> list[ValidationFinding]:
+    """Verify an exported package manifest when one is present.
+
+    Working packages do not receive a manifest until export. Once present, the
+    manifest is an integrity boundary: every listed file must still exist and
+    match, and every package file except the manifest itself must be listed.
+    """
+
+    manifest = root / "checksums" / "sha256.txt"
+    if not manifest.exists():
+        return []
+    findings: list[ValidationFinding] = []
+    expected: dict[str, str] = {}
+    try:
+        if manifest.is_symlink():
+            raise ValueError("checksum manifest must be a regular package file")
+        for line_no, raw_line in enumerate(manifest.read_text(encoding="utf-8").splitlines(), start=1):
+            if not raw_line.strip():
+                continue
+            if "  " not in raw_line:
+                raise ValueError(f"line {line_no} does not use '<sha256>  <path>' format")
+            digest, relative = raw_line.split("  ", 1)
+            if not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+                raise ValueError(f"line {line_no} has an invalid SHA256 digest")
+            ensure_relative_path(relative)
+            if relative == "checksums/sha256.txt":
+                raise ValueError("the checksum manifest cannot list itself")
+            if relative in expected:
+                raise ValueError(f"duplicate checksum entry: {relative}")
+            expected[relative] = digest.lower()
+    except Exception as exc:
+        return [
+            finding(
+                "G2.FIXITY.MANIFEST_INVALID",
+                "G2_FIXITY",
+                "L0_PACKAGE_INTEGRITY",
+                "ERROR",
+                "INTEGRITY_ERROR",
+                f"checksums/sha256.txt cannot be verified: {exc}",
+                pointer="/checksums/sha256.txt",
+                blocks=["draft", "internal", "share", "archive"],
+                fix="Re-export the package to regenerate its checksum manifest.",
+            )
+        ]
+
+    actual_files: set[str] = set()
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            continue
+        if not path.is_file():
+            continue
+        relative = path.relative_to(root).as_posix()
+        if relative != "checksums/sha256.txt":
+            actual_files.add(relative)
+    for relative, expected_digest in sorted(expected.items()):
+        try:
+            path = resolve_package_path(root, relative)
+            if not path.is_file() or path.is_symlink():
+                raise FileNotFoundError(relative)
+            actual_digest = sha256_file(path)
+        except Exception:
+            findings.append(
+                finding(
+                    "G2.FIXITY.MANIFEST_FILE_MISSING",
+                    "G2_FIXITY",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    f"Checksum manifest entry is missing or unsafe: {relative}.",
+                    pointer="/checksums/sha256.txt",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Restore the exported file or re-export the package.",
+                )
+            )
+            continue
+        if actual_digest != expected_digest:
+            findings.append(
+                finding(
+                    "G2.FIXITY.MANIFEST_HASH_MISMATCH",
+                    "G2_FIXITY",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    f"Exported file no longer matches checksums/sha256.txt: {relative}.",
+                    pointer="/checksums/sha256.txt",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Restore the exported file or re-export the package.",
+                )
+            )
+    for relative in sorted(actual_files - set(expected)):
+        findings.append(
+            finding(
+                "G2.FIXITY.MANIFEST_UNLISTED_FILE",
+                "G2_FIXITY",
+                "L0_PACKAGE_INTEGRITY",
+                "ERROR",
+                "INTEGRITY_ERROR",
+                f"Exported package contains a file not covered by its checksum manifest: {relative}.",
+                pointer="/checksums/sha256.txt",
+                blocks=["draft", "internal", "share", "archive"],
+                fix="Remove the unexpected file or re-export the package.",
+            )
+        )
+    return findings
+
+
+def _reference_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
+    findings: list[ValidationFinding] = []
+    artifact_id_counts: dict[str, int] = {}
+    for artifact in semantic.artifacts:
+        artifact_id_counts[artifact.id] = artifact_id_counts.get(artifact.id, 0) + 1
+    for artifact_id, count in sorted(artifact_id_counts.items()):
+        if count > 1:
+            findings.append(
+                finding(
+                    "G3.REFERENCE.DUPLICATE_ARTIFACT_ID",
+                    "G3_REFERENCE",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    f"Artifact ID {artifact_id} is used by {count} different artifact records.",
+                    pointer="/artifacts",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Assign a unique artifact ID to each distinct package path, then update its references.",
+                )
+            )
+    claim_ids = {item.id for item in semantic.claims}
+    scene_ids = {item.id for item in semantic.scenes}
+    evidence_ids = {item.id for item in semantic.evidence}
+    uncertainty_ids = {item.id for item in semantic.uncertainty}
+    entity_ids = {item.id for item in semantic.entities}
+    selection_ids = {item.id for item in semantic.selections}
+    artifact_ids = {item.id for item in semantic.artifacts}
+    operation_ids = {item.operation_id for item in semantic.observed_scene_operations}
+    resource_ref_ids = {item.resource_ref_id for item in semantic.resource_references}
+    claims_by_id = {item.id: item for item in semantic.claims}
+    evidence_by_id = {item.id: item for item in semantic.evidence}
+    uncertainty_by_id = {item.id: item for item in semantic.uncertainty}
+    for index, claim in enumerate(semantic.claims):
+        _missing_refs(findings, claim.scene_ids, scene_ids, f"/claims/{index}/scene_ids", "scene")
+        _missing_refs(findings, claim.evidence_ids, evidence_ids, f"/claims/{index}/evidence_ids", "evidence")
+        _missing_refs(findings, claim.uncertainty_ids, uncertainty_ids, f"/claims/{index}/uncertainty_ids", "uncertainty")
+        for evidence_id in claim.evidence_ids:
+            evidence = evidence_by_id.get(evidence_id)
+            if evidence is not None and claim.id not in evidence.claim_ids:
+                findings.append(
+                    finding(
+                        "G3.REFERENCE.INCONSISTENT",
+                        "G3_REFERENCE",
+                        "L0_PACKAGE_INTEGRITY",
+                        "ERROR",
+                        "INTEGRITY_ERROR",
+                        f"Claim {claim.id} links evidence {evidence_id}, but that evidence does not link back to the claim.",
+                        pointer=f"/claims/{index}/evidence_ids",
+                        blocks=["draft", "internal", "share", "archive"],
+                        fix="Make claim.evidence_ids and evidence.claim_ids describe the same relationship.",
+                    )
+                )
+        for uncertainty_id in claim.uncertainty_ids:
+            uncertainty = uncertainty_by_id.get(uncertainty_id)
+            if uncertainty is not None and claim.id not in uncertainty.claim_ids:
+                findings.append(
+                    finding(
+                        "G3.REFERENCE.INCONSISTENT",
+                        "G3_REFERENCE",
+                        "L0_PACKAGE_INTEGRITY",
+                        "ERROR",
+                        "INTEGRITY_ERROR",
+                        f"Claim {claim.id} links uncertainty {uncertainty_id}, but that note does not link back to the claim.",
+                        pointer=f"/claims/{index}/uncertainty_ids",
+                        blocks=["draft", "internal", "share", "archive"],
+                        fix="Make claim.uncertainty_ids and uncertainty.claim_ids describe the same relationship.",
+                    )
+                )
+    for index, scene in enumerate(semantic.scenes):
+        _missing_refs(findings, scene.native_artifact_ids, artifact_ids, f"/scenes/{index}/native_artifact_ids", "artifact")
+        _missing_refs(findings, scene.render_artifact_ids, artifact_ids, f"/scenes/{index}/render_artifact_ids", "artifact")
+        _missing_refs(findings, scene.selection_ids, selection_ids, f"/scenes/{index}/selection_ids", "selection")
+        _missing_refs(findings, scene.entity_ids, entity_ids, f"/scenes/{index}/entity_ids", "entity")
+    for index, entity in enumerate(semantic.entities):
+        _missing_refs(
+            findings,
+            entity.source_artifact_ids,
+            artifact_ids,
+            f"/entities/{index}/source_artifact_ids",
+            "artifact",
+        )
+    for index, selection in enumerate(semantic.selections):
+        _missing_refs(
+            findings,
+            selection.entity_ids,
+            entity_ids,
+            f"/selections/{index}/entity_ids",
+            "entity",
+        )
+        if selection.source_artifact_id is not None:
+            _missing_refs(
+                findings,
+                [selection.source_artifact_id],
+                artifact_ids,
+                f"/selections/{index}/source_artifact_id",
+                "artifact",
+            )
+    for index, evidence in enumerate(semantic.evidence):
+        _missing_refs(findings, evidence.claim_ids, claim_ids, f"/evidence/{index}/claim_ids", "claim")
+        _missing_refs(findings, evidence.source_artifact_ids, artifact_ids, f"/evidence/{index}/source_artifact_ids", "artifact")
+        _missing_refs(findings, evidence.target_entity_ids, entity_ids, f"/evidence/{index}/target_entity_ids", "entity")
+        _missing_refs(findings, evidence.target_selection_ids, selection_ids, f"/evidence/{index}/target_selection_ids", "selection")
+        for claim_id in evidence.claim_ids:
+            claim = claims_by_id.get(claim_id)
+            if claim is not None and evidence.id not in claim.evidence_ids:
+                findings.append(
+                    finding(
+                        "G3.REFERENCE.INCONSISTENT",
+                        "G3_REFERENCE",
+                        "L0_PACKAGE_INTEGRITY",
+                        "ERROR",
+                        "INTEGRITY_ERROR",
+                        f"Evidence {evidence.id} links claim {claim_id}, but that claim does not link back to the evidence.",
+                        pointer=f"/evidence/{index}/claim_ids",
+                        blocks=["draft", "internal", "share", "archive"],
+                        fix="Make claim.evidence_ids and evidence.claim_ids describe the same relationship.",
+                    )
+                )
+    for index, uncertainty in enumerate(semantic.uncertainty):
+        _missing_refs(
+            findings,
+            uncertainty.claim_ids,
+            claim_ids,
+            f"/uncertainty/{index}/claim_ids",
+            "claim",
+        )
+        for claim_id in uncertainty.claim_ids:
+            claim = claims_by_id.get(claim_id)
+            if claim is not None and uncertainty.id not in claim.uncertainty_ids:
+                findings.append(
+                    finding(
+                        "G3.REFERENCE.INCONSISTENT",
+                        "G3_REFERENCE",
+                        "L0_PACKAGE_INTEGRITY",
+                        "ERROR",
+                        "INTEGRITY_ERROR",
+                        f"Uncertainty {uncertainty.id} links claim {claim_id}, but that claim does not link back to the note.",
+                        pointer=f"/uncertainty/{index}/claim_ids",
+                        blocks=["draft", "internal", "share", "archive"],
+                        fix="Make claim.uncertainty_ids and uncertainty.claim_ids describe the same relationship.",
+                    )
+                )
+    for index, item in enumerate(semantic.visual_encoding_semantics):
+        _missing_refs(
+            findings,
+            item.operation_ids,
+            operation_ids,
+            f"/visual_encoding_semantics/{index}/operation_ids",
+            "scene operation",
+        )
+    for index, binding in enumerate(semantic.evidence_bindings):
+        if binding.claim_id is not None:
+            _missing_refs(
+                findings,
+                [binding.claim_id],
+                claim_ids,
+                f"/evidence_bindings/{index}/claim_id",
+                "claim",
+            )
+        _missing_refs(
+            findings,
+            binding.operation_ids,
+            operation_ids,
+            f"/evidence_bindings/{index}/operation_ids",
+            "scene operation",
+        )
+        _missing_refs(
+            findings,
+            binding.resource_ref_ids,
+            resource_ref_ids,
+            f"/evidence_bindings/{index}/resource_ref_ids",
+            "resource reference",
+        )
+        _missing_refs(
+            findings,
+            binding.evidence_artifact_ids,
+            artifact_ids,
+            f"/evidence_bindings/{index}/evidence_artifact_ids",
+            "artifact",
+        )
+    for index, raw in enumerate(semantic.raw_native_observations):
+        _missing_refs(
+            findings,
+            [raw.artifact_id],
+            artifact_ids,
+            f"/raw_native_observations/{index}/artifact_id",
+            "artifact",
+        )
+    for index, resource in enumerate(semantic.resource_references):
+        if resource.artifact_id is not None:
+            _missing_refs(
+                findings,
+                [resource.artifact_id],
+                artifact_ids,
+                f"/resource_references/{index}/artifact_id",
+                "artifact",
+            )
+    return findings
+
+
+def _missing_refs(
+    findings: list[ValidationFinding],
+    refs: list[str],
+    valid: set[str],
+    pointer: str,
+    label: str,
+) -> None:
+    for ref in refs:
+        if ref not in valid:
+            findings.append(
+                finding(
+                    "G3.REFERENCE.MISSING",
+                    "G3_REFERENCE",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    f"Package points to a missing {label} id: {ref}",
+                    pointer=pointer,
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Correct the ID or add the referenced object.",
+                )
+            )
+
+
+def _claim_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
+    findings: list[ValidationFinding] = []
+    if not semantic.claims:
+        findings.append(
+            finding(
+                "CLAIM.BASIC.MISSING",
+                "G4_CLAIM_RULES",
+                "L1_SEMANTIC_LINKABILITY",
+                "ERROR",
+                "REVIEWABILITY_ERROR",
+                "Add the main figure message before sharing this package.",
+                pointer="/claims",
+                blocks=["share", "archive"],
+                claim_critical=True,
+                fix="Edit the package's existing answers.yml, then run `claimtrace complete <package> --check-answers <package>/answers.yml` and apply it.",
+            )
+        )
+        return findings
+    for index, claim in enumerate(semantic.claims):
+        pointer = f"/claims/{index}"
+        if not _text_is_recorded(claim.claim_text.value):
+            findings.append(
+                finding(
+                    "CLAIM.BASIC.TEXT",
+                    "G4_CLAIM_RULES",
+                    "L1_SEMANTIC_LINKABILITY",
+                    "ERROR",
+                    "REVIEWABILITY_ERROR",
+                    f"Claim {claim.id} still needs the main figure message.",
+                    pointer=f"{pointer}/claim_text/value",
+                    blocks=["share", "archive"],
+                    claim_critical=True,
+                    fix="Fill `claim.claim_text` in answers.yml, then apply the answers file.",
+                )
+            )
+        if not _text_is_recorded(claim.figure_ref):
+            findings.append(
+                finding(
+                    "CLAIM.BASIC.FIGURE",
+                    "G4_CLAIM_RULES",
+                    "L1_SEMANTIC_LINKABILITY",
+                    "ERROR",
+                    "REVIEWABILITY_ERROR",
+                    f"Claim {claim.id} needs a figure or panel label.",
+                    pointer=f"{pointer}/figure_ref",
+                    blocks=["share", "archive"],
+                    claim_critical=True,
+                    fix="Fill `claim.figure_ref` with a label such as Figure 1A.",
+                )
+            )
+        if not claim.scene_ids:
+            findings.append(
+                finding(
+                    "CLAIM.BASIC.SCENE",
+                    "G4_CLAIM_RULES",
+                    "L1_SEMANTIC_LINKABILITY",
+                    "ERROR",
+                    "REVIEWABILITY_ERROR",
+                    f"Claim {claim.id} needs to be linked to a scene in this package.",
+                    pointer=f"{pointer}/scene_ids",
+                    blocks=["share", "archive"],
+                    claim_critical=True,
+                    fix="Apply answers again or add the scene id under this claim.",
+                )
+            )
+        if not claim.evidence_ids:
+            findings.append(
+                finding(
+                    "CLAIM.BASIC.EVIDENCE",
+                    "G4_CLAIM_RULES",
+                    "L3_CLAIM_EVIDENCE",
+                    "ERROR",
+                    "REVIEWABILITY_ERROR",
+                    f"Claim {claim.id} needs at least one supporting file or note before archive export.",
+                    pointer=f"{pointer}/evidence_ids",
+                    blocks=["archive"],
+                    claim_critical=True,
+                    waivable=True,
+                    fix="Add an evidence entry, or record a reason explaining why no separate evidence file is needed.",
+                )
+            )
+        for evidence_id in claim.evidence_ids:
+            evidence = next((item for item in semantic.evidence if item.id == evidence_id), None)
+            if evidence is not None and not evidence.source_artifact_ids:
+                findings.append(
+                    finding(
+                        "CLAIM.EVIDENCE.SOURCE_MISSING",
+                        "G4B_EVIDENCE_MINIMUMS",
+                        "L3_CLAIM_EVIDENCE",
+                        "ERROR",
+                        "REVIEWABILITY_ERROR",
+                        f"Evidence {evidence.id} has no linked source file or package artifact.",
+                        pointer=f"/evidence/{semantic.evidence.index(evidence)}/source_artifact_ids",
+                        blocks=["archive"],
+                        claim_critical=True,
+                        waivable=True,
+                        fix="Link a source artifact, add source_artifact_paths in answers.yml, or record why this is a note-only evidence item.",
+                    )
+                )
+            if evidence is not None and not _summary_is_recorded(evidence):
+                findings.append(
+                    finding(
+                        "CLAIM.EVIDENCE.SUMMARY_MISSING",
+                        "G4B_EVIDENCE_MINIMUMS",
+                        "L3_CLAIM_EVIDENCE",
+                        "ERROR",
+                        "REVIEWABILITY_ERROR",
+                        f"Evidence {evidence.id} needs a concrete result summary before archive export.",
+                        pointer=f"/evidence/{semantic.evidence.index(evidence)}/result_summary",
+                        blocks=["archive"],
+                        claim_critical=True,
+                        waivable=True,
+                        fix="Describe what the linked source shows, without overstating the scientific conclusion.",
+                    )
+                )
+            if evidence is not None and not _evidence_is_author_reviewed(evidence):
+                findings.append(
+                    finding(
+                        "CLAIM.EVIDENCE.REVIEW_REQUIRED",
+                        "G4B_EVIDENCE_MINIMUMS",
+                        "L3_CLAIM_EVIDENCE",
+                        "ERROR",
+                        "REVIEWABILITY_ERROR",
+                        f"Evidence {evidence.id} is still an unreviewed or automatically extracted observation.",
+                        pointer=f"/evidence/{semantic.evidence.index(evidence)}/review_status",
+                        blocks=["archive"],
+                        claim_critical=True,
+                        waivable=True,
+                        fix="Have an author review the evidence entry and record confirmed or human_accepted status.",
+                    )
+                )
+        for uncertainty_id in claim.uncertainty_ids:
+            uncertainty = next(
+                (item for item in semantic.uncertainty if item.id == uncertainty_id),
+                None,
+            )
+            if uncertainty is not None and not _uncertainty_is_complete(uncertainty):
+                findings.append(
+                    finding(
+                        "CLAIM.UNCERTAINTY.REVIEW_REQUIRED",
+                        "G4B_EVIDENCE_MINIMUMS",
+                        "L3_CLAIM_EVIDENCE",
+                        "ERROR",
+                        "REVIEWABILITY_ERROR",
+                        f"Uncertainty note {uncertainty.id} still needs a concrete author-reviewed statement.",
+                        pointer=f"/uncertainty/{semantic.uncertainty.index(uncertainty)}",
+                        blocks=["archive"],
+                        claim_critical=True,
+                        waivable=True,
+                        fix="Replace TODO/unknown text with a useful caveat and record author review.",
+                    )
+                )
+        if claim.claim_type == ClaimType.simple_structure_view and not _has_packaged_structure(semantic):
+            findings.append(
+                finding(
+                    "CLAIM.SIMPLE.REQUIRED_STRUCTURE",
+                    "G4B_EVIDENCE_MINIMUMS",
+                    "L3_CLAIM_EVIDENCE",
+                    "ERROR",
+                    "REVIEWABILITY_ERROR",
+                    f"Claim {claim.id} is a simple structure view but no structure file is linked in the package.",
+                    pointer=f"{pointer}/claim_type",
+                    blocks=["archive"],
+                    claim_critical=True,
+                    waivable=True,
+                    fix="Add a PDB/mmCIF/BCIF artifact, or record why the native/render files are sufficient.",
+                )
+            )
+        if claim.claim_type == ClaimType.simple_structure_view:
+            claim_scenes = [scene for scene in semantic.scenes if scene.id in claim.scene_ids]
+            if not any(scene.render_artifact_ids for scene in claim_scenes):
+                findings.append(
+                    finding(
+                        "CLAIM.SIMPLE.REQUIRED_RENDER",
+                        "G4B_EVIDENCE_MINIMUMS",
+                        "L2_VISUAL_REPRODUCIBILITY",
+                        "ERROR",
+                        "REVIEWABILITY_ERROR",
+                        f"Claim {claim.id} is a publication view but no rendered panel is linked.",
+                        pointer=f"{pointer}/scene_ids",
+                        blocks=["archive"],
+                        claim_critical=True,
+                        waivable=True,
+                        fix="Add the rendered panel, or document why a native-only archive is intentional.",
+                    )
+                )
+            if not any(scene.camera for scene in claim_scenes):
+                findings.append(
+                    finding(
+                        "CLAIM.SIMPLE.REQUIRED_CAMERA",
+                        "G4B_EVIDENCE_MINIMUMS",
+                        "L2_VISUAL_REPRODUCIBILITY",
+                        "ERROR",
+                        "REVIEWABILITY_ERROR",
+                        f"Claim {claim.id} has no captured camera/view state.",
+                        pointer=f"{pointer}/scene_ids",
+                        blocks=["archive"],
+                        claim_critical=True,
+                        waivable=True,
+                        fix="Include set_view/camera state, or document why viewpoint is not part of the claim.",
+                    )
+                )
+        if claim.claim_type == ClaimType.selection_highlight:
+            selection_ids = _selection_ids_for_claim(semantic, claim)
+            if not selection_ids:
+                findings.append(
+                    finding(
+                        "CLAIM.SELECTION.REQUIRED_SELECTION",
+                        "G4B_EVIDENCE_MINIMUMS",
+                        "L1_SEMANTIC_LINKABILITY",
+                        "ERROR",
+                        "REVIEWABILITY_ERROR",
+                        f"Claim {claim.id} is a selection highlight but no selection is linked to the claim scene.",
+                        pointer=f"{pointer}/scene_ids",
+                        blocks=["archive"],
+                        claim_critical=True,
+                        waivable=True,
+                        fix="Link the highlighted native selection to this claim, or choose a different claim_type.",
+                    )
+                )
+            for selection_id in selection_ids:
+                selection = next((item for item in semantic.selections if item.id == selection_id), None)
+                if selection is not None and not selection.entity_ids:
+                    findings.append(
+                        finding(
+                            "CLAIM.SELECTION.IDENTITY_MISSING",
+                            "G4B_EVIDENCE_MINIMUMS",
+                            "L1_SEMANTIC_LINKABILITY",
+                            "ERROR",
+                            "REVIEWABILITY_ERROR",
+                            f"Highlighted selection {selection.name} needs an entity mapping or stable identity context.",
+                            pointer=f"/selections/{semantic.selections.index(selection)}/entity_ids",
+                            blocks=["archive"],
+                            claim_critical=True,
+                            waivable=True,
+                            fix="Map the selection to an entity/residue/ligand entry, or document why the native selector is sufficient.",
+                        )
+                    )
+        if claim.claim_type == ClaimType.ligand_binding_pose and not _has_ligand_evidence(semantic, claim.id):
+            findings.append(
+                finding(
+                    "CLAIM.LIGAND.REQUIRED_CONTACTS",
+                    "G4B_EVIDENCE_MINIMUMS",
+                    "L3_CLAIM_EVIDENCE",
+                    "ERROR",
+                    "CLAIM_EVIDENCE_ERROR",
+                    "For a ligand-binding panel, add structured contact/distance evidence or linked external validation.",
+                    pointer=f"{pointer}/evidence_ids",
+                    blocks=["share", "archive"],
+                    claim_critical=True,
+                    waivable=True,
+                    fix="Link a structure plus contact table/measured distances with method and cutoff, or a relevant validation report.",
+                )
+            )
+        if claim.claim_type == ClaimType.ligand_binding_pose:
+            linked_evidence = [item for item in semantic.evidence if claim.id in item.claim_ids]
+            linked_entity_ids = {
+                entity_id for item in linked_evidence for entity_id in item.target_entity_ids
+            }
+            linked_entities = [item for item in semantic.entities if item.id in linked_entity_ids]
+            has_ligand_identity = any(
+                item.entity_type.lower() == "ligand" and _text_is_recorded(item.stable_identity)
+                for item in linked_entities
+            )
+            has_site_identity = any(
+                item.entity_type.lower() in {"residue", "residue_set", "binding_site", "binding-site"}
+                and _text_is_recorded(item.stable_identity)
+                for item in linked_entities
+            )
+            if not (has_ligand_identity and has_site_identity):
+                findings.append(
+                    finding(
+                        "CLAIM.LIGAND.IDENTITY_CONTEXT",
+                        "G4B_EVIDENCE_MINIMUMS",
+                        "L1_SEMANTIC_LINKABILITY",
+                        "ERROR",
+                        "CLAIM_EVIDENCE_ERROR",
+                        "A ligand-binding claim needs stable ligand and binding-site/residue identities linked to its evidence.",
+                        pointer=f"{pointer}/evidence_ids",
+                        blocks=["archive"],
+                        claim_critical=True,
+                        waivable=True,
+                        fix="Add ligand and residue entities with stable identities, then target them from the evidence entry.",
+                    )
+                )
+        if claim.claim_type == ClaimType.trajectory_mechanism:
+            roles = {artifact.role.value for artifact in semantic.artifacts}
+            has_analysis = any(
+                _trajectory_analysis_is_complete(semantic, item, claim.id)
+                for item in semantic.evidence
+            )
+            if "trajectory" not in roles or "topology" not in roles or not has_analysis:
+                findings.append(
+                    finding(
+                        "CLAIM.TRAJECTORY.REQUIRED_CONTEXT",
+                        "G4B_EVIDENCE_MINIMUMS",
+                        "L3_CLAIM_EVIDENCE",
+                        "ERROR",
+                        "CLAIM_EVIDENCE_ERROR",
+                        "A trajectory-mechanism claim needs trajectory, topology and linked trajectory-analysis evidence with method, frame/sampling and replicate context.",
+                        pointer=f"{pointer}/evidence_ids",
+                        blocks=["share", "archive"],
+                        claim_critical=True,
+                        waivable=True,
+                        fix="Attach trajectory/topology files and record the analysis method, selected frames/sampling window and replicate count.",
+                    )
+                )
+        if claim.claim_type in {ClaimType.cryo_em_map_fit, ClaimType.xray_density_support}:
+            has_map = any(artifact.role.value == "map" for artifact in semantic.artifacts)
+            has_structure = any(artifact.role.value == "structure" for artifact in semantic.artifacts)
+            has_density_evidence = any(
+                _density_evidence_is_complete(semantic, item, claim.id)
+                for item in semantic.evidence
+            )
+            if not has_map or not has_structure or not has_density_evidence:
+                findings.append(
+                    finding(
+                        "CLAIM.DENSITY.REQUIRED_CONTEXT",
+                        "G4B_EVIDENCE_MINIMUMS",
+                        "L3_CLAIM_EVIDENCE",
+                        "ERROR",
+                        "CLAIM_EVIDENCE_ERROR",
+                        "A map/density claim needs an attached map and fitted structure plus linked density/map-fit evidence with method and contour/fit parameters.",
+                        pointer=f"{pointer}/evidence_ids",
+                        blocks=["share", "archive"],
+                        claim_critical=True,
+                        waivable=True,
+                        fix="Attach the map and fitted structure, then link both from evidence with contour/isovalue and method context.",
+                    )
+                )
+        if claim.claim_type == ClaimType.computed_model_claim:
+            has_structure = any(artifact.role.value == "structure" for artifact in semantic.artifacts)
+            has_validation = any(
+                _computed_model_evidence_is_complete(semantic, item, claim.id)
+                for item in semantic.evidence
+            )
+            if not has_structure or not has_validation:
+                findings.append(
+                    finding(
+                        "CLAIM.COMPUTED_MODEL.REQUIRED_VALIDATION",
+                        "G4B_EVIDENCE_MINIMUMS",
+                        "L3_CLAIM_EVIDENCE",
+                        "ERROR",
+                        "CLAIM_EVIDENCE_ERROR",
+                        "A computed-model claim needs the model plus confidence/validation evidence explicitly linked to that model and claim.",
+                        pointer=f"{pointer}/evidence_ids",
+                        blocks=["share", "archive"],
+                        claim_critical=True,
+                        waivable=True,
+                        fix="Attach a confidence/validation report and link it as external_validation evidence.",
+                    )
+                )
+        if claim.claim_type == ClaimType.model_comparison:
+            structure_count = sum(1 for artifact in semantic.artifacts if artifact.role.value == "structure")
+            has_comparison_evidence = any(
+                _model_comparison_evidence_is_complete(semantic, item, claim.id)
+                for item in semantic.evidence
+            )
+            if structure_count < 2 or not has_comparison_evidence:
+                findings.append(
+                    finding(
+                        "CLAIM.MODEL_COMPARISON.REQUIRED_CONTEXT",
+                        "G4B_EVIDENCE_MINIMUMS",
+                        "L3_CLAIM_EVIDENCE",
+                        "ERROR",
+                        "CLAIM_EVIDENCE_ERROR",
+                        "A model-comparison claim needs at least two structures and a named comparison method whose evidence links both structure files.",
+                        pointer=f"{pointer}/evidence_ids",
+                        blocks=["archive"],
+                        claim_critical=True,
+                        waivable=True,
+                        fix="Attach both compared models and record the comparison method/metric.",
+                    )
+                )
+        if claim.claim_type in {
+            ClaimType.ligand_binding_pose,
+            ClaimType.cryo_em_map_fit,
+            ClaimType.xray_density_support,
+            ClaimType.trajectory_mechanism,
+        } and not claim.uncertainty_ids:
+            findings.append(
+                finding(
+                    "CLAIM.UNCERTAINTY.MISSING",
+                    "G4B_EVIDENCE_MINIMUMS",
+                    "L3_CLAIM_EVIDENCE",
+                    "WARNING",
+                    "EVIDENCE_LIMITATION_WARNING",
+                    f"Claim {claim.id} would benefit from a short caveat or alternative-explanation note.",
+                    pointer=f"{pointer}/uncertainty_ids",
+                    blocks=["archive"],
+                    waivable=True,
+                    fix="Add a caveat, or record a reason that no caveat is needed for this package.",
+                )
+            )
+    return findings
+
+
+def _selection_ids_for_claim(semantic: SemanticLayer, claim: Any) -> set[str]:
+    scene_ids = set(claim.scene_ids)
+    return {
+        selection_id
+        for scene in semantic.scenes
+        if not scene_ids or scene.id in scene_ids
+        for selection_id in scene.selection_ids
+    }
+
+
+def _has_ligand_evidence(semantic: SemanticLayer, claim_id: str) -> bool:
+    for evidence in semantic.evidence:
+        if (
+            claim_id not in evidence.claim_ids
+            or not evidence.source_artifact_ids
+            or not _summary_is_recorded(evidence)
+            or not _evidence_is_author_reviewed(evidence)
+        ):
+            continue
+        source_roles = _evidence_source_roles(semantic, evidence)
+        has_structure = "structure" in source_roles
+        has_target = bool(evidence.target_entity_ids or evidence.target_selection_ids)
+        has_method = _method_is_recorded(evidence)
+        if evidence.evidence_kind == EvidenceKind.contact_table:
+            has_contact_source = "contact_table" in source_roles
+            has_distance_context = _valid_distance_context(evidence)
+            if has_structure and has_contact_source and has_target and has_method and has_distance_context:
+                return True
+        if evidence.evidence_kind == EvidenceKind.external_validation:
+            has_validation_source = bool(
+                source_roles & {"validation_report", "evidence_document", "contact_table"}
+            )
+            if has_structure and has_validation_source and has_target and has_method:
+                return True
+        if evidence.evidence_kind == EvidenceKind.measurement and _measurement_has_ligand_context(semantic, evidence):
+            return True
+    return False
+
+
+def _measurement_has_ligand_context(semantic: SemanticLayer, evidence: Any) -> bool:
+    has_structured_measurement = (
+        _valid_distance_context(evidence)
+        and _method_is_recorded(evidence)
+        and _summary_is_recorded(evidence)
+        and _evidence_is_author_reviewed(evidence)
+    )
+    has_target = bool(evidence.target_entity_ids or evidence.target_selection_ids)
+    source_roles = _evidence_source_roles(semantic, evidence)
+    has_substantive_source = "structure" in source_roles and bool(
+        source_roles & {"contact_table", "validation_report", "evidence_document"}
+    )
+    return has_structured_measurement and has_target and has_substantive_source
+
+
+def _evidence_source_roles(semantic: SemanticLayer, evidence: Any) -> set[str]:
+    source_ids = set(getattr(evidence, "source_artifact_ids", []))
+    roles = {
+        artifact.role.value
+        for artifact in semantic.artifacts
+        if artifact.id in source_ids
+    }
+    if any(
+        inventory.artifact_id in source_ids and _inventory_has_structure(inventory)
+        for inventory in semantic.mvsx_inventories
+    ):
+        roles.add("structure")
+    return roles
+
+
+def _has_packaged_structure(semantic: SemanticLayer) -> bool:
+    return any(artifact.role.value == "structure" for artifact in semantic.artifacts) or any(
+        _inventory_has_structure(inventory) for inventory in semantic.mvsx_inventories
+    )
+
+
+def _inventory_has_structure(inventory: Any) -> bool:
+    structure_suffixes = {".pdb", ".cif", ".mmcif", ".bcif", ".pdbqt", ".mol", ".sdf", ".mol2"}
+    return any(
+        member.referenced
+        and not member.is_dir
+        and Path(member.normalized_name.lower()).suffix in structure_suffixes
+        and bool(member.sha256)
+        for member in inventory.members
+    )
+
+
+def _method_is_recorded(evidence: Any) -> bool:
+    return str(getattr(evidence, "method_name", "")).strip().lower() not in {
+        "",
+        "unknown",
+        "unspecified",
+        "todo",
+        "tbd",
+    }
+
+
+def _summary_is_recorded(evidence: Any) -> bool:
+    return _text_is_recorded(getattr(evidence, "result_summary", ""))
+
+
+def _text_is_recorded(value: Any) -> bool:
+    normalized = str(value).strip().lower()
+    return (
+        bool(normalized)
+        and normalized not in {"unknown", "unspecified", "todo", "tbd"}
+        and not normalized.startswith(("todo", "tbd"))
+    )
+
+
+def _evidence_is_author_reviewed(evidence: Any) -> bool:
+    return getattr(evidence, "review_status", None) in {
+        ReviewStatus.confirmed,
+        ReviewStatus.human_accepted,
+    }
+
+
+def _uncertainty_is_complete(uncertainty: Any) -> bool:
+    return _text_is_recorded(getattr(uncertainty, "statement", "")) and getattr(
+        uncertainty,
+        "review_status",
+        None,
+    ) in {ReviewStatus.confirmed, ReviewStatus.human_accepted}
+
+
+def _valid_distance_context(evidence: Any) -> bool:
+    threshold = getattr(evidence, "thresholds", {}).get("distance")
+    unit = str(getattr(evidence, "units", {}).get("distance", "")).strip().lower()
+    if unit in {"", "unknown", "unspecified"}:
+        return False
+    try:
+        return float(threshold) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _parameter_names(evidence: Any) -> set[str]:
+    return {
+        str(key).strip().lower().replace("-", "_").replace(" ", "_")
+        for key in getattr(evidence, "parameters", {})
+    }
+
+
+def _trajectory_analysis_is_complete(semantic: SemanticLayer, evidence: Any, claim_id: str) -> bool:
+    if evidence.evidence_kind != EvidenceKind.trajectory_analysis or claim_id not in evidence.claim_ids:
+        return False
+    roles = _evidence_source_roles(semantic, evidence)
+    names = _parameter_names(evidence)
+    has_frame_context = bool(
+        names
+        & {
+            "frame",
+            "frames",
+            "frame_range",
+            "frame_selection",
+            "selected_frames",
+            "sampling",
+            "sampling_window",
+            "time_range",
+        }
+    )
+    has_replicate_context = bool(
+        names
+        & {
+            "replicate",
+            "replicates",
+            "replica",
+            "replicas",
+            "replicate_count",
+            "n_replicates",
+        }
+    )
+    return (
+        {"trajectory", "topology"} <= roles
+        and _method_is_recorded(evidence)
+        and _summary_is_recorded(evidence)
+        and _evidence_is_author_reviewed(evidence)
+        and has_frame_context
+        and has_replicate_context
+    )
+
+
+def _density_evidence_is_complete(semantic: SemanticLayer, evidence: Any, claim_id: str) -> bool:
+    if (
+        evidence.evidence_kind not in {EvidenceKind.density_support, EvidenceKind.map_fit_metric}
+        or claim_id not in evidence.claim_ids
+    ):
+        return False
+    roles = _evidence_source_roles(semantic, evidence)
+    return (
+        {"map", "structure"} <= roles
+        and _method_is_recorded(evidence)
+        and bool(evidence.thresholds or evidence.parameters)
+        and _summary_is_recorded(evidence)
+        and _evidence_is_author_reviewed(evidence)
+    )
+
+
+def _computed_model_evidence_is_complete(semantic: SemanticLayer, evidence: Any, claim_id: str) -> bool:
+    if evidence.evidence_kind != EvidenceKind.external_validation or claim_id not in evidence.claim_ids:
+        return False
+    roles = _evidence_source_roles(semantic, evidence)
+    return (
+        "structure" in roles
+        and bool(roles & {"validation_report", "evidence_document"})
+        and _method_is_recorded(evidence)
+        and _summary_is_recorded(evidence)
+        and _evidence_is_author_reviewed(evidence)
+    )
+
+
+def _model_comparison_evidence_is_complete(semantic: SemanticLayer, evidence: Any, claim_id: str) -> bool:
+    if claim_id not in evidence.claim_ids or not _method_is_recorded(evidence):
+        return False
+    structure_ids = {
+        artifact.id
+        for artifact in semantic.artifacts
+        if artifact.role.value == "structure"
+    }
+    linked_structures = structure_ids & set(evidence.source_artifact_ids)
+    return (
+        len(linked_structures) >= 2
+        and _summary_is_recorded(evidence)
+        and _evidence_is_author_reviewed(evidence)
+    )
+
+
+def _visibility_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
+    findings: list[ValidationFinding] = []
+    critical_entities = {entity.id for entity in semantic.entities if entity.claim_critical}
+    critical_selections = {selection.id for selection in semantic.selections if selection.claim_critical}
+    for scene_index, scene in enumerate(semantic.scenes):
+        for visibility_index, record in enumerate(scene.visibility):
+            critical = (record.entity_id in critical_entities) or (record.selection_id in critical_selections)
+            if critical and record.state in {"hidden", "excluded"} and not record.reason:
+                findings.append(
+                    finding(
+                        "SCENE.HIDDEN.CRITICAL_REASON",
+                        "G5_VISIBILITY",
+                        "L2_VISUAL_REPRODUCIBILITY",
+                        "ERROR",
+                        "DISCLOSURE_WARNING",
+                        "A figure-central hidden or excluded object needs a short explanation.",
+                        pointer=f"/scenes/{scene_index}/visibility/{visibility_index}/reason",
+                        blocks=["archive"],
+                        claim_critical=True,
+                        waivable=True,
+                        fix="Add a short reason for hiding/excluding it, or revise the scene.",
+                    )
+                )
+    return findings
+
+
+def _native_scene_anchor_findings(semantic: SemanticLayer, mode: str) -> list[ValidationFinding]:
+    findings: list[ValidationFinding] = []
+    if mode not in {"share", "archive"}:
+        return findings
+    for index, raw in enumerate(semantic.raw_native_observations):
+        if raw.resolution in {"no_scene_effect", "reviewed_no_claim_impact", "not_applicable"}:
+            continue
+        if raw.claim_critical in {ClaimCriticalStatus.true, ClaimCriticalStatus.unknown}:
+            rule_id = "IMPORT.NATIVE.RAW_AFFECTS_SCENE"
+            if "pymol" in raw.raw_id or raw.reason.startswith(("unknown_pymol", "pymol_", "dynamic_or_executable_pymol")):
+                rule_id = "IMPORT.PYMOL.RAW_AFFECTS_SCENE"
+            elif "chimerax" in raw.raw_id or raw.reason.startswith(("unknown_chimerax", "dynamic_or_executable_chimerax")):
+                rule_id = "IMPORT.CXC.RAW_AFFECTS_SCENE"
+            if raw.reason.startswith("unknown_mvs") or raw.reason.startswith("invalid_mvs"):
+                rule_id = "IMPORT.MVS.UNKNOWN_NODE"
+            findings.append(
+                finding(
+                    rule_id,
+                    "G6_NATIVE_STATIC_IMPORT",
+                    "L2_VISUAL_REPRODUCIBILITY",
+                    "ERROR" if mode == "archive" or raw.claim_critical == ClaimCriticalStatus.true else "WARNING",
+                    "REVIEWABILITY_ERROR",
+                    f"Native content was preserved for author review: {raw.reason}.",
+                    pointer=f"/raw_native_observations/{index}",
+                    blocks=["archive"] if raw.claim_critical == ClaimCriticalStatus.unknown else ["share", "archive"],
+                    claim_critical=raw.claim_critical != ClaimCriticalStatus.false,
+                    waivable=True,
+                    fix="Mark whether this item affects the figure, or record a reason to leave it as-is.",
+                )
+            )
+    for index, ref in enumerate(semantic.native_references):
+        if ref.claim_critical == ClaimCriticalStatus.true and ref.identity_status != "resolved":
+            findings.append(
+                finding(
+                    "SCENE.MOLECULAR_IDENTITY_UNCONFIRMED",
+                    "G6_NATIVE_STATIC_IMPORT",
+                    "L1_SEMANTIC_LINKABILITY",
+                    "ERROR",
+                    "REVIEWABILITY_ERROR",
+                    f"Name the molecule, chain, residue or file behind this native reference: {ref.native_expression}.",
+                    pointer=f"/native_references/{index}",
+                    blocks=["share", "archive"],
+                    claim_critical=True,
+                    waivable=True,
+                    fix="Add a reader-friendly identity for this reference, or record why it is not needed.",
+                )
+            )
+        if ref.claim_critical == ClaimCriticalStatus.true and ref.target_resolution_status.value != "resolved_against_artifact":
+            findings.append(
+                finding(
+                    "SCENE.TARGET_RESOLUTION_INCOMPLETE",
+                    "G6_NATIVE_STATIC_IMPORT",
+                    "L1_SEMANTIC_LINKABILITY",
+                    "ERROR",
+                    "REVIEWABILITY_ERROR",
+                    f"This figure-central native reference has not been matched to a package file: {ref.native_expression}.",
+                    pointer=f"/native_references/{index}/target_resolution_status",
+                    blocks=["archive"],
+                    claim_critical=True,
+                    waivable=True,
+                    fix="Mark it resolved_against_artifact after linking the relevant package file, or record why it is not needed.",
+                )
+            )
+    answered_ops = {
+        operation_id
+        for item in semantic.visual_encoding_semantics
+        if item.meaning_status
+        in {
+            MeaningStatus.user_confirmed_meaning,
+            MeaningStatus.user_declared_no_scientific_meaning,
+        }
+        for operation_id in item.operation_ids
+    }
+    for index, operation in enumerate(semantic.observed_scene_operations):
+        needs_author_review = (
+            operation.meaning_status == MeaningStatus.requires_user_completion
+            or operation.needs_author_confirmation
+            or operation.claim_critical == ClaimCriticalStatus.true
+            or (
+                operation.meaning_status == MeaningStatus.tool_suggested_meaning
+                and operation.claim_critical == ClaimCriticalStatus.unknown
+                and _operation_has_visual_candidate(operation)
+            )
+            or _operation_likely_ligand_claim_central(semantic, operation)
+        )
+        if (
+            operation.claim_critical != ClaimCriticalStatus.false
+            and needs_author_review
+            and operation.operation_id not in answered_ops
+        ):
+            findings.append(
+                finding(
+                    "SCENE.VISUAL_ENCODING.MEANING_MISSING",
+                    "G6_NATIVE_STATIC_IMPORT",
+                    "L2_VISUAL_REPRODUCIBILITY",
+                    "ERROR",
+                    "REVIEWABILITY_ERROR",
+                    f"Confirm or edit the suggested meaning of this visual encoding, or mark it as presentation only: {operation.operation_id}.",
+                    pointer=f"/observed_scene_operations/{index}",
+                    blocks=["archive"],
+                    claim_critical=True,
+                    waivable=True,
+                    fix="Confirm the matching operation in `scene_semantics_by_operation`, edit the meaning, or mark it as presentation only.",
+                )
+            )
+    for index, resource in enumerate(semantic.resource_references):
+        if (
+            resource.claim_critical in {ClaimCriticalStatus.true, ClaimCriticalStatus.unknown}
+            and resource.uri_kind in {"remote", "file", "unknown", "relative", "missing_archive_member"}
+            and resource.fixity_status != "available"
+            and not resource_matches_artifact(semantic, resource.uri, resource_ref=resource)
+        ):
+            missing_archive_member = resource.uri_kind == "missing_archive_member"
+            display_uri = resource_uri_summary(resource.uri)
+            message = (
+                f"This referenced file is missing from the MVSX archive: {display_uri}."
+                if missing_archive_member
+                else f"This resource needs a local file, checksum or documented reason before archive export: {display_uri}."
+            )
+            fix = (
+                "Rebuild the MVSX with the file at the referenced archive path; an external sibling file does not make the archive self-contained."
+                if missing_archive_member
+                else "Attach the resource, record an expected checksum, or record why it can remain detached."
+            )
+            findings.append(
+                finding(
+                    (
+                        "IMPORT.MVSX.MEMBER_MISSING"
+                        if missing_archive_member
+                        else "IMPORT.REMOTE_RESOURCE_DETACHED"
+                    ),
+                    "G6_NATIVE_STATIC_IMPORT",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "DISCLOSURE_WARNING",
+                    message,
+                    pointer=f"/resource_references/{index}",
+                    blocks=["archive"] if resource.claim_critical == ClaimCriticalStatus.unknown else ["share", "archive"],
+                    claim_critical=resource.claim_critical != ClaimCriticalStatus.false,
+                    waivable=True,
+                    fix=fix,
+                )
+            )
+    return findings
+
+
+def _operation_likely_ligand_claim_central(semantic: SemanticLayer, operation: Any) -> bool:
+    if not any(claim.claim_type == ClaimType.ligand_binding_pose for claim in semantic.claims):
+        return False
+    if getattr(operation, "operation", "") not in {"colored", "labeled"}:
+        return False
+    text = " ".join(
+        str(value)
+        for value in [
+            getattr(operation, "target", ""),
+            getattr(operation, "candidate_meaning", ""),
+            getattr(operation, "auto_annotation", ""),
+        ]
+    ).lower()
+    return any(token in text for token in ["ligand", "pocket", "binding-site", "binding site"])
+
+
+def _operation_has_visual_candidate(operation: Any) -> bool:
+    candidate = str(getattr(operation, "candidate_meaning", "") or "")
+    if (
+        candidate
+        and "no scientific meaning is inferred" in candidate.lower()
+        and not getattr(operation, "needs_author_confirmation", False)
+    ):
+        return False
+    return getattr(operation, "operation", "") in {"colored", "labeled"} and bool(candidate)
+
+def _privacy_findings(root: Path, semantic: SemanticLayer, mode: str) -> list[ValidationFinding]:
+    findings: list[ValidationFinding] = []
+    if mode not in {"share", "archive"}:
+        return findings
+    data = semantic.model_dump(mode="json")
+    for pointer, value in _walk_json(data):
+        if not isinstance(value, str):
+            continue
+        for pattern in SECRET_PATTERNS:
+            if pattern.search(value):
+                findings.append(
+                    finding(
+                        "SECURITY.PATH.PRIVACY",
+                        "G7_EXPORT_READY",
+                        "L0_PACKAGE_INTEGRITY",
+                        "ERROR",
+                        "SECURITY_BLOCKER",
+                        "Package text may include a local path, email address or token-like value.",
+                        pointer=pointer,
+                        blocks=["share", "archive"],
+                        fix="Remove or redact sensitive text before export.",
+                    )
+                )
+                break
+    for file_path in safe_walk(root):
+        relative = file_path.relative_to(root.resolve()).as_posix()
+        if relative == SEMANTIC_LAYER_FILENAME or file_path.suffix.lower() not in TEXT_PRIVACY_SUFFIXES:
+            continue
+        try:
+            if not file_path.is_file() or file_path.stat().st_size > MAX_PRIVACY_SCAN_BYTES:
+                continue
+            text = file_path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        if any(pattern.search(text) for pattern in SECRET_PATTERNS):
+            findings.append(
+                finding(
+                    "SECURITY.PATH.PRIVACY",
+                    "G7_EXPORT_READY",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "SECURITY_BLOCKER",
+                    f"Package text may contain a private path, email address or token-like value: {relative}.",
+                    pointer=f"/{relative}",
+                    blocks=["share", "archive"],
+                    fix="Review and redact this package text before sharing.",
+                )
+            )
+    return findings
+
+
+def _walk_json(value: Any, pointer: str = ""):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            escaped = str(key).replace("~", "~0").replace("/", "~1")
+            yield from _walk_json(child, f"{pointer}/{escaped}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from _walk_json(child, f"{pointer}/{index}")
+    else:
+        yield pointer or "/", value
+
+
+def _apply_waivers(findings: list[ValidationFinding], semantic: SemanticLayer, mode: str) -> None:
+    for item in findings:
+        for index, waiver in enumerate(semantic.provenance.waivers):
+            if waiver.rule_id == item.rule_id and item.waivable and waiver_covers(waiver.max_export_mode, mode):
+                item.status = "WAIVED"
+                item.waiver_id = f"waiver:{index}"
+                break
+
+
+def _report(
+    package_id: str,
+    semantic_ref: SemanticLayerRef,
+    mode: str,
+    findings: list[ValidationFinding],
+    semantic: SemanticLayer | None,
+    root: Path,
+    revalidation: dict[str, object] | None = None,
+) -> ValidationReport:
+    summary = {"errors": 0, "warnings": 0, "info": 0}
+    blocking_errors = 0
+    warnings = 0
+    for item in findings:
+        if item.severity == "ERROR":
+            summary["errors"] += 1
+            if item.status != "WAIVED" and mode in item.blocks_modes:
+                blocking_errors += 1
+        elif item.severity == "WARNING":
+            summary["warnings"] += 1
+            if item.status != "WAIVED":
+                warnings += 1
+        else:
+            summary["info"] += 1
+    status = "fail" if blocking_errors else "pass_with_warnings" if warnings else "pass"
+    return ValidationReport(
+        package_id=package_id,
+        semantic_layer_ref=semantic_ref,
+        export_mode=mode,
+        overall_status=status,
+        validation_levels=_levels(),
+        summary=summary,
+        findings=findings,
+        claim_traceability_matrix=_traceability_matrix(semantic),
+        artifact_fixity=_artifact_fixity(root, semantic),
+        entity_evidence_matrix=_entity_evidence_matrix(semantic),
+        unresolved_list=_unresolved(semantic),
+        native_inference_limits=[
+            "Native viewer files were parsed statically; the viewer was not run, so successful loading, non-empty selections and rendered pixels were not runtime-verified.",
+            "Visualization operations are context, not scientific support; support comes from claim-linked evidence files and author-reviewed notes.",
+            "Distance commands are measurement intent and are not automatically classified as hydrogen bonds or contacts.",
+            "Selection names such as active_site remain native labels until confirmed by the author.",
+            "A color ramp over atom field b does not identify whether the values are crystallographic B-factors, pLDDT or custom values.",
+            "Automatic privacy scanning covers package metadata and known text attachments up to 2 MiB; binary and larger files still need manual review.",
+        ],
+        evidence_minimums_by_profile=_evidence_minimums(),
+        human_review_required=_human_review_required(semantic),
+        visual_context_audit=_visual_context_audit(semantic),
+        waiver_list=[waiver.model_dump(mode="json") for waiver in semantic.provenance.waivers] if semantic else [],
+        revalidation=revalidation or {"performed_on_exported_package": False, "status": "not_performed"},
+    )
+
+
+def _levels() -> list[dict[str, object]]:
+    return [
+        {"level": "L0_PACKAGE_INTEGRITY", "name": "Package integrity"},
+        {"level": "L1_SEMANTIC_LINKABILITY", "name": "Semantic linkability"},
+        {"level": "L2_VISUAL_REPRODUCIBILITY", "name": "Visual reproducibility"},
+        {"level": "L3_CLAIM_EVIDENCE", "name": "Claim evidence context"},
+        {"level": "L4_REVIEW_PACKAGE", "name": "Reviewer package usability"},
+    ]
+
+
+def _traceability_matrix(semantic: SemanticLayer | None) -> list[dict[str, object]]:
+    if semantic is None:
+        return []
+    matrix = []
+    for index, claim in enumerate(semantic.claims):
+        evidence_ids = claim.evidence_ids
+        entity_ids = sorted(
+            {
+                entity_id
+                for evidence in semantic.evidence
+                if evidence.id in evidence_ids
+                for entity_id in evidence.target_entity_ids
+            }
+        )
+        matrix.append(
+            {
+                "claim_id": claim.id,
+                "claim_text": claim.claim_text.value,
+                "claim_type": claim.claim_type.value,
+                "figure_ref": claim.figure_ref,
+                "claim_status": claim.claim_status,
+                "review_status": claim.review_status.value,
+                "scene_ids": claim.scene_ids,
+                "render_artifact_ids": sorted(
+                    {
+                        artifact_id
+                        for scene in semantic.scenes
+                        if scene.id in claim.scene_ids
+                        for artifact_id in scene.render_artifact_ids
+                    }
+                ),
+                "native_artifact_ids": sorted(
+                    {
+                        artifact_id
+                        for scene in semantic.scenes
+                        if scene.id in claim.scene_ids
+                        for artifact_id in scene.native_artifact_ids
+                    }
+                ),
+                "selection_ids": sorted(
+                    {
+                        selection_id
+                        for scene in semantic.scenes
+                        if scene.id in claim.scene_ids
+                        for selection_id in scene.selection_ids
+                    }
+                ),
+                "entity_ids": entity_ids,
+                "critical_entity_visibility": "unknown",
+                "evidence_ids": evidence_ids,
+                "uncertainty_ids": claim.uncertainty_ids,
+                "required_evidence_status": "complete" if _claim_evidence_complete(semantic, claim) else "missing",
+                "recommended_evidence_status": "partial",
+                "blocking_findings": [],
+                "json_pointer": f"/claims/{index}",
+            }
+        )
+    return matrix
+
+
+def _artifact_fixity(root: Path, semantic: SemanticLayer | None) -> list[dict[str, object]]:
+    if semantic is None:
+        return []
+    rows = []
+    for artifact in semantic.artifacts:
+        exists = False
+        actual_sha = None
+        if artifact.path and artifact.kind == ArtifactKind.local_attached:
+            try:
+                path = resolve_package_path(root, artifact.path)
+                exists = path.exists()
+                actual_sha = sha256_file(path) if path.is_file() else None
+            except Exception:
+                exists = False
+        rows.append(
+            {
+                "artifact_id": artifact.id,
+                "path": artifact.path,
+                "url": artifact.url,
+                "role": artifact.role.value,
+                "kind": artifact.kind.value,
+                "exists": exists,
+                "expected_sha256": artifact.sha256,
+                "actual_sha256": actual_sha,
+                "status": "pass" if actual_sha == artifact.sha256 or artifact.kind != ArtifactKind.local_attached else "fail",
+            }
+        )
+    return rows
+
+
+def _entity_evidence_matrix(semantic: SemanticLayer | None) -> list[dict[str, object]]:
+    if semantic is None:
+        return []
+    rows = []
+    for entity in semantic.entities:
+        evidence_ids = [
+            evidence.id for evidence in semantic.evidence if entity.id in evidence.target_entity_ids
+        ]
+        rows.append(
+            {
+                "entity_id": entity.id,
+                "label": entity.label,
+                "claim_critical": entity.claim_critical,
+                "stable_identity": entity.stable_identity,
+                "evidence_ids": evidence_ids,
+                "status": "linked" if evidence_ids else "unlinked",
+            }
+        )
+    return rows
+
+
+def _unresolved(semantic: SemanticLayer | None) -> list[dict[str, object]]:
+    if semantic is None:
+        return []
+    unresolved = []
+    for pointer, value in _walk_json(semantic.model_dump(mode="json")):
+        if value in {"unknown", "needs_review"}:
+            unresolved.append({"json_pointer": pointer, "value": value})
+    return unresolved
+
+
+def _evidence_minimums() -> list[dict[str, object]]:
+    return [
+        {
+            "claim_type": "simple_structure_view",
+            "minimum": ["native artifact", "structure artifact", "scene/camera", "render output", "sha256"],
+        },
+        {
+            "claim_type": "ligand_binding_pose",
+            "minimum": [
+                "ligand stable ID",
+                "binding-site residue stable IDs",
+                "contact/distance evidence artifact",
+                "method/threshold/units",
+                "uncertainty or alternative-pose statement",
+            ],
+        },
+        {
+            "claim_type": "trajectory_mechanism",
+            "minimum": ["trajectory", "topology", "trajectory analysis", "replicate/frame/method context"],
+        },
+        {
+            "claim_type": "cryo_em_map_fit/xray_density_support",
+            "minimum": ["map artifact", "density or map-fit evidence", "contour/method parameters"],
+        },
+        {
+            "claim_type": "computed_model_claim",
+            "minimum": ["computed structure", "confidence or validation evidence"],
+        },
+        {
+            "claim_type": "model_comparison",
+            "minimum": ["two structure artifacts", "comparison evidence linked to both"],
+        },
+    ]
+
+
+def _claim_evidence_complete(semantic: SemanticLayer, claim: Any) -> bool:
+    if not claim.evidence_ids:
+        return False
+    if claim.claim_type == ClaimType.ligand_binding_pose:
+        return _has_ligand_evidence(semantic, claim.id)
+    if claim.claim_type == ClaimType.trajectory_mechanism:
+        roles = {artifact.role.value for artifact in semantic.artifacts}
+        return {"trajectory", "topology"} <= roles and any(
+            _trajectory_analysis_is_complete(semantic, item, claim.id)
+            for item in semantic.evidence
+        )
+    if claim.claim_type in {ClaimType.cryo_em_map_fit, ClaimType.xray_density_support}:
+        roles = {artifact.role.value for artifact in semantic.artifacts}
+        return {"map", "structure"} <= roles and any(
+            _density_evidence_is_complete(semantic, item, claim.id)
+            for item in semantic.evidence
+        )
+    if claim.claim_type == ClaimType.computed_model_claim:
+        return any(artifact.role.value == "structure" for artifact in semantic.artifacts) and any(
+            _computed_model_evidence_is_complete(semantic, item, claim.id)
+            for item in semantic.evidence
+        )
+    if claim.claim_type == ClaimType.model_comparison:
+        return sum(1 for artifact in semantic.artifacts if artifact.role.value == "structure") >= 2 and any(
+            _model_comparison_evidence_is_complete(semantic, item, claim.id)
+            for item in semantic.evidence
+        )
+    return any(
+        item.id in claim.evidence_ids
+        and claim.id in item.claim_ids
+        and bool(item.source_artifact_ids)
+        and _summary_is_recorded(item)
+        and _evidence_is_author_reviewed(item)
+        for item in semantic.evidence
+    )
+
+
+def _human_review_required(semantic: SemanticLayer | None) -> list[dict[str, object]]:
+    if semantic is None:
+        return []
+    rows = []
+    for pointer, value in _walk_json(semantic.model_dump(mode="json")):
+        if value == "needs_review":
+            rows.append({"json_pointer": pointer, "reason": "Field requires human review."})
+    return rows
+
+
+def _visual_context_audit(semantic: SemanticLayer | None) -> list[dict[str, object]]:
+    if semantic is None:
+        return []
+    rows = []
+    for scene in semantic.scenes:
+        for record in scene.visibility:
+            rows.append(
+                {
+                    "scene_id": scene.id,
+                    "entity_id": record.entity_id,
+                    "selection_id": record.selection_id,
+                    "native_target": record.native_target,
+                    "state": record.state,
+                    "reason": record.reason,
+                    "review_status": record.review_status.value,
+                }
+            )
+    return rows

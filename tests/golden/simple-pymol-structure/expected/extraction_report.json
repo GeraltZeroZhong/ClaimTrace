@@ -1,0 +1,11 @@
+{
+  "importers": [
+    "pymol",
+    "image"
+  ],
+  "minimum_fact_count": 4,
+  "required_support_status": [
+    "supported_shallow",
+    "supported_exact"
+  ]
+}

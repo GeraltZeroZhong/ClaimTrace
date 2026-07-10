@@ -1,0 +1,2213 @@
+{
+  "$defs": {
+    "Activity": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "activity_type": {
+          "title": "Activity Type",
+          "type": "string"
+        },
+        "started_at": {
+          "title": "Started At",
+          "type": "string"
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ended At"
+        },
+        "agent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent Id"
+        },
+        "used_artifact_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Used Artifact Ids",
+          "type": "array"
+        },
+        "generated_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Generated Ids",
+          "type": "array"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "activity_type"
+      ],
+      "title": "Activity",
+      "type": "object"
+    },
+    "Agent": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "agent_type": {
+          "default": "unknown",
+          "enum": [
+            "person",
+            "software",
+            "organization",
+            "unknown"
+          ],
+          "title": "Agent Type",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Agent",
+      "type": "object"
+    },
+    "Artifact": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind",
+          "default": "local_attached"
+        },
+        "role": {
+          "$ref": "#/$defs/ArtifactRole",
+          "default": "generic"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "format": {
+          "default": "application/octet-stream",
+          "title": "Format",
+          "type": "string"
+        },
+        "media_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Media Type"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "byte_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Byte Size"
+        },
+        "included": {
+          "default": true,
+          "title": "Included",
+          "type": "boolean"
+        },
+        "detached_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detached Reason"
+        },
+        "source_type": {
+          "$ref": "#/$defs/SourceType",
+          "default": "artifact_metadata"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "auto_extracted"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "accessed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accessed At"
+        },
+        "fixity_status": {
+          "default": "available",
+          "title": "Fixity Status",
+          "type": "string"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Artifact",
+      "type": "object"
+    },
+    "ArtifactKind": {
+      "enum": [
+        "local_attached",
+        "local_detached",
+        "remote"
+      ],
+      "title": "ArtifactKind",
+      "type": "string"
+    },
+    "ArtifactRole": {
+      "enum": [
+        "native_script",
+        "native_session",
+        "chimerax_script",
+        "molviewspec",
+        "render_image",
+        "structure",
+        "map",
+        "trajectory",
+        "topology",
+        "contact_table",
+        "validation_report",
+        "evidence_document",
+        "directory",
+        "generic",
+        "package_metadata"
+      ],
+      "title": "ArtifactRole",
+      "type": "string"
+    },
+    "Claim": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "claim_text": {
+          "$ref": "#/$defs/ProvenancedString"
+        },
+        "claim_type": {
+          "$ref": "#/$defs/ClaimType",
+          "default": "unknown"
+        },
+        "figure_ref": {
+          "default": "unknown",
+          "title": "Figure Ref",
+          "type": "string"
+        },
+        "scope": {
+          "default": "unknown",
+          "title": "Scope",
+          "type": "string"
+        },
+        "scene_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Scene Ids",
+          "type": "array"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "uncertainty_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Uncertainty Ids",
+          "type": "array"
+        },
+        "claim_status": {
+          "default": "needs_review",
+          "title": "Claim Status",
+          "type": "string"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "needs_review"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "claim_text"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "ClaimCriticalStatus": {
+      "enum": [
+        "true",
+        "false",
+        "unknown"
+      ],
+      "title": "ClaimCriticalStatus",
+      "type": "string"
+    },
+    "ClaimType": {
+      "enum": [
+        "simple_structure_view",
+        "selection_highlight",
+        "ligand_binding_pose",
+        "cryo_em_map_fit",
+        "xray_density_support",
+        "trajectory_mechanism",
+        "model_comparison",
+        "computed_model_claim",
+        "unknown"
+      ],
+      "title": "ClaimType",
+      "type": "string"
+    },
+    "ConfidenceValue": {
+      "enum": [
+        "exact",
+        "high",
+        "medium",
+        "low",
+        "heuristic",
+        "unknown"
+      ],
+      "title": "ConfidenceValue",
+      "type": "string"
+    },
+    "Entity": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "entity_type": {
+          "default": "unknown",
+          "title": "Entity Type",
+          "type": "string"
+        },
+        "label": {
+          "default": "unknown",
+          "title": "Label",
+          "type": "string"
+        },
+        "stable_identity": {
+          "default": "unknown",
+          "title": "Stable Identity",
+          "type": "string"
+        },
+        "source_artifact_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Artifact Ids",
+          "type": "array"
+        },
+        "claim_critical": {
+          "default": false,
+          "title": "Claim Critical",
+          "type": "boolean"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "needs_review"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Entity",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "evidence_kind": {
+          "$ref": "#/$defs/EvidenceKind",
+          "default": "manual_rationale"
+        },
+        "claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "source_artifact_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Artifact Ids",
+          "type": "array"
+        },
+        "target_entity_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Target Entity Ids",
+          "type": "array"
+        },
+        "target_selection_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Target Selection Ids",
+          "type": "array"
+        },
+        "generated_by": {
+          "default": "unknown",
+          "title": "Generated By",
+          "type": "string"
+        },
+        "method_name": {
+          "default": "unknown",
+          "title": "Method Name",
+          "type": "string"
+        },
+        "method_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method Version"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        },
+        "thresholds": {
+          "additionalProperties": true,
+          "title": "Thresholds",
+          "type": "object"
+        },
+        "units": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Units",
+          "type": "object"
+        },
+        "result_summary": {
+          "default": "unknown",
+          "title": "Result Summary",
+          "type": "string"
+        },
+        "result_summary_structured": {
+          "additionalProperties": true,
+          "title": "Result Summary Structured",
+          "type": "object"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "alternative_explanations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Alternative Explanations",
+          "type": "array"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "needs_review"
+        },
+        "reviewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewer"
+        },
+        "reviewed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewed At"
+        },
+        "provenance_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provenance Id"
+        },
+        "fixity_status": {
+          "default": "unknown",
+          "title": "Fixity Status",
+          "type": "string"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "EvidenceBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_id": {
+          "title": "Binding Id",
+          "type": "string"
+        },
+        "claim_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claim Id"
+        },
+        "operation_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Operation Ids",
+          "type": "array"
+        },
+        "resource_ref_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Resource Ref Ids",
+          "type": "array"
+        },
+        "evidence_artifact_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Artifact Ids",
+          "type": "array"
+        },
+        "evidence_type": {
+          "title": "Evidence Type",
+          "type": "string"
+        },
+        "method_context": {
+          "additionalProperties": true,
+          "title": "Method Context",
+          "type": "object"
+        },
+        "support_status": {
+          "default": "unresolved",
+          "title": "Support Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "binding_id",
+        "evidence_type"
+      ],
+      "title": "EvidenceBinding",
+      "type": "object"
+    },
+    "EvidenceKind": {
+      "enum": [
+        "measurement",
+        "external_validation",
+        "density_support",
+        "map_fit_metric",
+        "contact_table",
+        "trajectory_analysis",
+        "manual_rationale",
+        "negative_control",
+        "waiver",
+        "native_observation"
+      ],
+      "title": "EvidenceKind",
+      "type": "string"
+    },
+    "ExtractionConfidence": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "$ref": "#/$defs/ConfidenceValue",
+          "default": "unknown"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
+        },
+        "basis": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Basis",
+          "type": "array"
+        }
+      },
+      "title": "ExtractionConfidence",
+      "type": "object"
+    },
+    "MVSXInventory": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "scene_entry": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scene Entry"
+        },
+        "format_status": {
+          "default": "standard",
+          "enum": [
+            "standard",
+            "nonstandard_single_mvsj"
+          ],
+          "title": "Format Status",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/MVSXMember"
+          },
+          "title": "Members",
+          "type": "array"
+        }
+      },
+      "required": [
+        "artifact_id"
+      ],
+      "title": "MVSXInventory",
+      "type": "object"
+    },
+    "MVSXMember": {
+      "additionalProperties": false,
+      "properties": {
+        "member_id": {
+          "title": "Member Id",
+          "type": "string"
+        },
+        "original_name": {
+          "title": "Original Name",
+          "type": "string"
+        },
+        "normalized_name": {
+          "title": "Normalized Name",
+          "type": "string"
+        },
+        "is_dir": {
+          "default": false,
+          "title": "Is Dir",
+          "type": "boolean"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "crc32": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Crc32"
+        },
+        "byte_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Byte Size"
+        },
+        "compressed_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Compressed Size"
+        },
+        "compression_method": {
+          "default": "unknown",
+          "title": "Compression Method",
+          "type": "string"
+        },
+        "external_attr": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "External Attr"
+        },
+        "media_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Media Type"
+        },
+        "referenced_by_json_pointers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Referenced By Json Pointers",
+          "type": "array"
+        },
+        "referenced": {
+          "default": false,
+          "title": "Referenced",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "member_id",
+        "original_name",
+        "normalized_name"
+      ],
+      "title": "MVSXMember",
+      "type": "object"
+    },
+    "MeaningStatus": {
+      "enum": [
+        "native_observed",
+        "tool_suggested_meaning",
+        "requires_user_completion",
+        "user_declared_no_scientific_meaning",
+        "user_confirmed_meaning",
+        "unresolved_claim_critical"
+      ],
+      "title": "MeaningStatus",
+      "type": "string"
+    },
+    "NativeReference": {
+      "additionalProperties": false,
+      "properties": {
+        "native_ref_id": {
+          "title": "Native Ref Id",
+          "type": "string"
+        },
+        "source_location": {
+          "$ref": "#/$defs/SourceLocation"
+        },
+        "native_expression": {
+          "title": "Native Expression",
+          "type": "string"
+        },
+        "ref_type": {
+          "title": "Ref Type",
+          "type": "string"
+        },
+        "stable_identity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stable Identity"
+        },
+        "identity_status": {
+          "default": "unresolved",
+          "enum": [
+            "resolved",
+            "unresolved",
+            "not_applicable"
+          ],
+          "title": "Identity Status",
+          "type": "string"
+        },
+        "claim_critical": {
+          "$ref": "#/$defs/ClaimCriticalStatus",
+          "default": "unknown"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "needs_review"
+        },
+        "target_resolution_status": {
+          "$ref": "#/$defs/TargetResolutionStatus",
+          "default": "expression_only"
+        }
+      },
+      "required": [
+        "native_ref_id",
+        "native_expression",
+        "ref_type"
+      ],
+      "title": "NativeReference",
+      "type": "object"
+    },
+    "ObservedSceneOperation": {
+      "additionalProperties": false,
+      "properties": {
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "operation": {
+          "title": "Operation",
+          "type": "string"
+        },
+        "target": {
+          "default": "",
+          "title": "Target",
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": true,
+          "title": "Details",
+          "type": "object"
+        },
+        "auto_annotation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Auto Annotation"
+        },
+        "candidate_meaning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Meaning"
+        },
+        "meaning_confidence": {
+          "$ref": "#/$defs/ConfidenceValue",
+          "default": "unknown"
+        },
+        "meaning_basis": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Meaning Basis",
+          "type": "array"
+        },
+        "needs_author_confirmation": {
+          "default": false,
+          "title": "Needs Author Confirmation",
+          "type": "boolean"
+        },
+        "source_location": {
+          "$ref": "#/$defs/SourceLocation"
+        },
+        "native_command": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Native Command"
+        },
+        "native_value": {
+          "additionalProperties": true,
+          "title": "Native Value",
+          "type": "object"
+        },
+        "support_status": {
+          "$ref": "#/$defs/SupportStatus",
+          "default": "supported_shallow"
+        },
+        "extraction_confidence": {
+          "$ref": "#/$defs/ExtractionConfidence"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "auto_extracted"
+        },
+        "meaning_status": {
+          "$ref": "#/$defs/MeaningStatus",
+          "default": "native_observed"
+        },
+        "target_resolution_status": {
+          "$ref": "#/$defs/TargetResolutionStatus",
+          "default": "expression_only"
+        },
+        "claim_critical": {
+          "$ref": "#/$defs/ClaimCriticalStatus",
+          "default": "unknown"
+        }
+      },
+      "required": [
+        "operation_id",
+        "operation"
+      ],
+      "title": "ObservedSceneOperation",
+      "type": "object"
+    },
+    "PackageMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "package_id": {
+          "title": "Package Id",
+          "type": "string"
+        },
+        "title": {
+          "default": "Untitled ClaimTrace package",
+          "title": "Title",
+          "type": "string"
+        },
+        "creator": {
+          "default": "unknown",
+          "title": "Creator",
+          "type": "string"
+        },
+        "license": {
+          "default": "unknown",
+          "title": "License",
+          "type": "string"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "profile": {
+          "default": "draft",
+          "title": "Profile",
+          "type": "string"
+        },
+        "cal_schema_version": {
+          "default": "0.1.0",
+          "title": "Cal Schema Version",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "package_id"
+      ],
+      "title": "PackageMetadata",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "agents": {
+          "items": {
+            "$ref": "#/$defs/Agent"
+          },
+          "title": "Agents",
+          "type": "array"
+        },
+        "activities": {
+          "items": {
+            "$ref": "#/$defs/Activity"
+          },
+          "title": "Activities",
+          "type": "array"
+        },
+        "waivers": {
+          "items": {
+            "$ref": "#/$defs/Waiver"
+          },
+          "title": "Waivers",
+          "type": "array"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "title": "Provenance",
+      "type": "object"
+    },
+    "ProvenancedString": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "title": "Value",
+          "type": "string"
+        },
+        "source_type": {
+          "$ref": "#/$defs/SourceType",
+          "default": "user_asserted"
+        },
+        "source_location": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "$ref": "#/$defs/ConfidenceValue",
+          "default": "unknown"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "needs_review"
+        },
+        "reviewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewer"
+        },
+        "reviewed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewed At"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "ProvenancedString",
+      "type": "object"
+    },
+    "RawNativeObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "raw_id": {
+          "title": "Raw Id",
+          "type": "string"
+        },
+        "artifact_id": {
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "source_location": {
+          "$ref": "#/$defs/SourceLocation"
+        },
+        "native_text": {
+          "title": "Native Text",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "support_status": {
+          "$ref": "#/$defs/SupportStatus",
+          "default": "raw_unsupported"
+        },
+        "extraction_confidence": {
+          "$ref": "#/$defs/ExtractionConfidence"
+        },
+        "may_affect_scene_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "May Affect Scene Id"
+        },
+        "resolution": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "no_scene_effect",
+            "reviewed_no_claim_impact",
+            "converted_to_evidence",
+            "waived",
+            "not_applicable"
+          ],
+          "title": "Resolution",
+          "type": "string"
+        },
+        "claim_critical": {
+          "$ref": "#/$defs/ClaimCriticalStatus",
+          "default": "unknown"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "needs_review"
+        }
+      },
+      "required": [
+        "raw_id",
+        "artifact_id",
+        "native_text",
+        "reason"
+      ],
+      "title": "RawNativeObservation",
+      "type": "object"
+    },
+    "ResourceReference": {
+      "additionalProperties": false,
+      "properties": {
+        "resource_ref_id": {
+          "title": "Resource Ref Id",
+          "type": "string"
+        },
+        "artifact_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Artifact Id"
+        },
+        "uri": {
+          "title": "Uri",
+          "type": "string"
+        },
+        "uri_kind": {
+          "default": "unknown",
+          "enum": [
+            "local",
+            "relative",
+            "remote",
+            "archive_member",
+            "missing_archive_member",
+            "file",
+            "data",
+            "unknown"
+          ],
+          "title": "Uri Kind",
+          "type": "string"
+        },
+        "base_uri": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Uri"
+        },
+        "mvsx_member_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mvsx Member Id"
+        },
+        "fetch_status": {
+          "default": "not_fetched",
+          "enum": [
+            "not_fetched",
+            "fetched",
+            "unresolved",
+            "not_applicable"
+          ],
+          "title": "Fetch Status",
+          "type": "string"
+        },
+        "fixity_status": {
+          "default": "unknown",
+          "title": "Fixity Status",
+          "type": "string"
+        },
+        "claim_critical": {
+          "$ref": "#/$defs/ClaimCriticalStatus",
+          "default": "unknown"
+        },
+        "source_location": {
+          "$ref": "#/$defs/SourceLocation"
+        }
+      },
+      "required": [
+        "resource_ref_id",
+        "uri"
+      ],
+      "title": "ResourceReference",
+      "type": "object"
+    },
+    "Reuse": {
+      "additionalProperties": false,
+      "properties": {
+        "license": {
+          "default": "unknown",
+          "title": "License",
+          "type": "string"
+        },
+        "citation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Citation"
+        },
+        "restrictions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Restrictions",
+          "type": "array"
+        },
+        "reviewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewer"
+        },
+        "reviewed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewed At"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "title": "Reuse",
+      "type": "object"
+    },
+    "ReviewStatus": {
+      "enum": [
+        "auto_extracted",
+        "needs_review",
+        "confirmed",
+        "human_accepted",
+        "rejected",
+        "superseded"
+      ],
+      "title": "ReviewStatus",
+      "type": "string"
+    },
+    "Scene": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "default": "Draft scene from native artifacts",
+          "title": "Description",
+          "type": "string"
+        },
+        "native_artifact_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Native Artifact Ids",
+          "type": "array"
+        },
+        "render_artifact_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Render Artifact Ids",
+          "type": "array"
+        },
+        "selection_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Selection Ids",
+          "type": "array"
+        },
+        "entity_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Entity Ids",
+          "type": "array"
+        },
+        "representations": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Representations",
+          "type": "array"
+        },
+        "visibility": {
+          "items": {
+            "$ref": "#/$defs/VisibilityRecord"
+          },
+          "title": "Visibility",
+          "type": "array"
+        },
+        "camera": {
+          "additionalProperties": true,
+          "title": "Camera",
+          "type": "object"
+        },
+        "parse_confidence": {
+          "$ref": "#/$defs/ConfidenceValue",
+          "default": "unknown"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "needs_review"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Scene",
+      "type": "object"
+    },
+    "Selection": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "native_selector": {
+          "$ref": "#/$defs/ProvenancedString"
+        },
+        "entity_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Entity Ids",
+          "type": "array"
+        },
+        "source_artifact_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Artifact Id"
+        },
+        "claim_critical": {
+          "default": false,
+          "title": "Claim Critical",
+          "type": "boolean"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "needs_review"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "native_selector"
+      ],
+      "title": "Selection",
+      "type": "object"
+    },
+    "SoftwareEnvironment": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "default": "unknown",
+          "title": "Version",
+          "type": "string"
+        },
+        "role": {
+          "default": "viewer",
+          "title": "Role",
+          "type": "string"
+        },
+        "command": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "SoftwareEnvironment",
+      "type": "object"
+    },
+    "SourceLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Artifact Id"
+        },
+        "line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line"
+        },
+        "column": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Column"
+        },
+        "json_pointer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Json Pointer"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "title": "SourceLocation",
+      "type": "object"
+    },
+    "SourceType": {
+      "enum": [
+        "native_file",
+        "artifact_metadata",
+        "computed_by_tool",
+        "user_asserted",
+        "external_evidence",
+        "tool_generated",
+        "unknown"
+      ],
+      "title": "SourceType",
+      "type": "string"
+    },
+    "SupportStatus": {
+      "enum": [
+        "supported_deep",
+        "supported_shallow",
+        "supported_heuristic",
+        "supported_compat",
+        "raw_unsupported",
+        "unsupported"
+      ],
+      "title": "SupportStatus",
+      "type": "string"
+    },
+    "TargetResolutionStatus": {
+      "enum": [
+        "expression_only",
+        "resolved_against_artifact",
+        "unresolved",
+        "not_checked"
+      ],
+      "title": "TargetResolutionStatus",
+      "type": "string"
+    },
+    "Uncertainty": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
+        },
+        "category": {
+          "default": "general",
+          "title": "Category",
+          "type": "string"
+        },
+        "statement": {
+          "default": "unknown",
+          "title": "Statement",
+          "type": "string"
+        },
+        "alternative_explanations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Alternative Explanations",
+          "type": "array"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "needs_review"
+        },
+        "reviewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewer"
+        },
+        "reviewed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewed At"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Uncertainty",
+      "type": "object"
+    },
+    "VisibilityRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "entity_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entity Id"
+        },
+        "selection_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Selection Id"
+        },
+        "native_target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Native Target"
+        },
+        "state": {
+          "default": "unknown",
+          "enum": [
+            "visible",
+            "hidden",
+            "simplified",
+            "excluded",
+            "unknown"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "source_type": {
+          "$ref": "#/$defs/SourceType",
+          "default": "native_file"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "needs_review"
+        }
+      },
+      "title": "VisibilityRecord",
+      "type": "object"
+    },
+    "VisualEncodingSemantics": {
+      "additionalProperties": false,
+      "properties": {
+        "operation_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Operation Ids",
+          "type": "array"
+        },
+        "encoding_type": {
+          "title": "Encoding Type",
+          "type": "string"
+        },
+        "meaning_status": {
+          "$ref": "#/$defs/MeaningStatus",
+          "default": "requires_user_completion"
+        },
+        "meaning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Meaning"
+        },
+        "auto_annotation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Auto Annotation"
+        },
+        "candidate_meaning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Meaning"
+        },
+        "meaning_confidence": {
+          "$ref": "#/$defs/ConfidenceValue",
+          "default": "unknown"
+        },
+        "meaning_basis": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Meaning Basis",
+          "type": "array"
+        },
+        "needs_author_confirmation": {
+          "default": false,
+          "title": "Needs Author Confirmation",
+          "type": "boolean"
+        },
+        "no_scientific_meaning_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "No Scientific Meaning Reason"
+        },
+        "reviewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewer"
+        },
+        "reviewed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewed At"
+        }
+      },
+      "required": [
+        "encoding_type"
+      ],
+      "title": "VisualEncodingSemantics",
+      "type": "object"
+    },
+    "Waiver": {
+      "additionalProperties": false,
+      "properties": {
+        "rule_id": {
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "scope": {
+          "title": "Scope",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "reviewer": {
+          "title": "Reviewer",
+          "type": "string"
+        },
+        "anchor_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anchor Id"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "reviewed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewed At"
+        },
+        "max_export_mode": {
+          "default": "draft",
+          "enum": [
+            "draft",
+            "internal",
+            "share",
+            "archive"
+          ],
+          "title": "Max Export Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rule_id",
+        "scope",
+        "reason",
+        "reviewer"
+      ],
+      "title": "Waiver",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "default": "0.1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "semantic_layer_id": {
+      "title": "Semantic Layer Id",
+      "type": "string"
+    },
+    "package": {
+      "$ref": "#/$defs/PackageMetadata"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/Claim"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/Artifact"
+      },
+      "title": "Artifacts",
+      "type": "array"
+    },
+    "entities": {
+      "items": {
+        "$ref": "#/$defs/Entity"
+      },
+      "title": "Entities",
+      "type": "array"
+    },
+    "selections": {
+      "items": {
+        "$ref": "#/$defs/Selection"
+      },
+      "title": "Selections",
+      "type": "array"
+    },
+    "scenes": {
+      "items": {
+        "$ref": "#/$defs/Scene"
+      },
+      "title": "Scenes",
+      "type": "array"
+    },
+    "observed_scene_operations": {
+      "items": {
+        "$ref": "#/$defs/ObservedSceneOperation"
+      },
+      "title": "Observed Scene Operations",
+      "type": "array"
+    },
+    "native_references": {
+      "items": {
+        "$ref": "#/$defs/NativeReference"
+      },
+      "title": "Native References",
+      "type": "array"
+    },
+    "raw_native_observations": {
+      "items": {
+        "$ref": "#/$defs/RawNativeObservation"
+      },
+      "title": "Raw Native Observations",
+      "type": "array"
+    },
+    "resource_references": {
+      "items": {
+        "$ref": "#/$defs/ResourceReference"
+      },
+      "title": "Resource References",
+      "type": "array"
+    },
+    "mvsx_inventories": {
+      "items": {
+        "$ref": "#/$defs/MVSXInventory"
+      },
+      "title": "Mvsx Inventories",
+      "type": "array"
+    },
+    "visual_encoding_semantics": {
+      "items": {
+        "$ref": "#/$defs/VisualEncodingSemantics"
+      },
+      "title": "Visual Encoding Semantics",
+      "type": "array"
+    },
+    "evidence_bindings": {
+      "items": {
+        "$ref": "#/$defs/EvidenceBinding"
+      },
+      "title": "Evidence Bindings",
+      "type": "array"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/Evidence"
+      },
+      "title": "Evidence",
+      "type": "array"
+    },
+    "uncertainty": {
+      "items": {
+        "$ref": "#/$defs/Uncertainty"
+      },
+      "title": "Uncertainty",
+      "type": "array"
+    },
+    "software_environment": {
+      "items": {
+        "$ref": "#/$defs/SoftwareEnvironment"
+      },
+      "title": "Software Environment",
+      "type": "array"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "reuse": {
+      "$ref": "#/$defs/Reuse"
+    },
+    "last_validation": {
+      "additionalProperties": true,
+      "title": "Last Validation",
+      "type": "object"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    }
+  },
+  "required": [
+    "semantic_layer_id",
+    "package"
+  ],
+  "title": "Claim Accountability Layer semantic_layer.json",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://claimtrace.org/schema/semantic-layer.schema.json"
+}

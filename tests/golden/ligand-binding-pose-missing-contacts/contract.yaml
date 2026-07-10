@@ -1,0 +1,7 @@
+case: ligand-binding-pose-missing-contacts
+input:
+  native: tests/golden/ligand-binding-pose-missing-contacts/input/figure_A.pml
+expected:
+  validation_status: fail
+  required_rule_id: CLAIM.LIGAND.REQUIRED_CONTACTS
+  negative_assertion: distance is not automatically classified as hydrogen bond/contact

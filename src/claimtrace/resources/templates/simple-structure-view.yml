@@ -1,0 +1,32 @@
+package:
+  title: Simple molecular structure view
+  creator: unknown
+  license: unknown
+  profile: simple-structure-view
+claim:
+  claim_text: "TODO: write the figure or panel message"
+  claim_type: simple_structure_view
+  figure_ref: 'TODO: add figure/panel label'
+  scope: panel
+artifacts:
+  - path: model.cif
+    role: structure
+entities: []
+evidence:
+  - evidence_kind: manual_rationale
+    method_name: "TODO: name the review or evidence method"
+    result_summary: "TODO: explain which attached files support this panel and how"
+    source_artifact_roles:
+      - native_script
+      - render_image
+      - structure
+scene:
+  color_meanings: {}
+  label_meanings: {}
+  notes: ClaimTrace records literal colors and labels automatically. Tool suggestions are not author-confirmed; confirm figure-central meanings or mark them presentation only.
+uncertainty:
+  category: scope
+  statement: This package records a visual structure view and does not assert a molecular mechanism.
+reuse:
+  license: unknown
+  citation: unknown

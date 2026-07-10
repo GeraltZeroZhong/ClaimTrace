@@ -1,0 +1,48 @@
+package:
+  title: Ligand binding pose review package
+  creator: unknown
+  license: unknown
+  profile: ligand-binding-pose
+claim:
+  claim_text: "TODO: write the exact ligand/pocket claim for this panel"
+  claim_type: ligand_binding_pose
+  figure_ref: 'TODO: add figure/panel label'
+  scope: panel
+artifacts:
+  - path: model.cif
+    role: structure
+  - path: contacts.csv
+    role: contact_table
+entities:
+  - id: entity:ligand:X
+    entity_type: ligand
+    label: Ligand X
+    stable_identity: unknown
+    claim_critical: true
+  - id: entity:binding-site
+    entity_type: residue_set
+    label: Binding-site residues
+    stable_identity: unknown
+    claim_critical: true
+evidence:
+  - evidence_kind: contact_table
+    method_name: "TODO: name the contact or validation method"
+    thresholds: {}
+    units: {}
+    result_summary: "TODO: summarize the contact/distance evidence and file names"
+    source_artifact_roles:
+      - contact_table
+      - structure
+    target_entity_ids:
+      - entity:ligand:X
+      - entity:binding-site
+scene:
+  color_meanings: {}
+  label_meanings: {}
+  notes: Displayed, hidden, colored and labeled objects are auto-extracted from native artifacts. Confirm ligand/pocket visual meanings that support the figure message.
+uncertainty:
+  category: alternative_pose
+  statement: "TODO: state whether alternative poses, waters/cofactors or other limits were assessed"
+reuse:
+  license: unknown
+  citation: unknown
