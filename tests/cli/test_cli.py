@@ -38,6 +38,9 @@ def test_cli_quickstart_shows_short_user_path():
     result = runner.invoke(app, ["quickstart"])
 
     assert result.exit_code == 0
+    assert "python -m pip install claimtrace" in result.stdout
+    assert "not published on PyPI" not in result.stdout
+    assert "./dist/claimtrace" not in result.stdout
     assert "Supported native scene files: .pml, .cxc, .mvsj, .mvsx" in result.stdout
     assert 'claimtrace init "figure_A.pml"' in result.stdout
     assert 'Edit "scene-package/answers.yml"' in result.stdout

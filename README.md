@@ -16,25 +16,15 @@ resources.
 
 ### 1. Install ClaimTrace
 
-ClaimTrace requires Python 3.10 or newer. Run one of the following commands
-from the repository root, where `pyproject.toml` and `dist/` are located.
-
-Install from the source checkout:
+ClaimTrace requires Python 3.10 or newer. Install it from PyPI:
 
 ```bash
-python -m pip install .
+python -m pip install claimtrace
 claimtrace --version
 ```
 
-Or install the included wheel:
-
-```bash
-python -m pip install "./dist/claimtrace-0.1.0-py3-none-any.whl"
-claimtrace --version
-```
-
-Both options work in Bash and PowerShell. A virtual environment is optional,
-but useful if you want to keep ClaimTrace separate from other Python tools.
+This works in Bash and PowerShell. A virtual environment is optional, but
+useful if you want to keep ClaimTrace separate from other Python tools.
 
 ### 2. Create a package
 
@@ -394,7 +384,7 @@ inventory.
 
 | What you see | What to try |
 | --- | --- |
-| `No matching distribution found for claimtrace` | Run `python -m pip install .` from the repository root or install the local wheel in `dist/` |
+| `No matching distribution found for claimtrace` | Check the package name, network connection, Python version, and configured package index. From a source checkout, use `python -m pip install .` |
 | `claimtrace: command not found` | Check the active environment with `python -m pip show claimtrace`, reopen the shell, or run `python -m claimtrace --help` |
 | `Input file not found` | Check the current folder, quote paths containing spaces, and use the path syntax for your current shell |
 | `Output directory already exists` | Choose another `--out` path. Use `--force` only when the target is an existing ClaimTrace package you intend to replace |
