@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 from pathlib import PurePosixPath
 
 from claimtrace.models import SemanticLayer
@@ -190,11 +191,20 @@ def render_readme(semantic: SemanticLayer, report: ValidationReport | None = Non
         lines.append("No caveat or uncertainty note is recorded yet.")
     lines.extend(["", "## Validation", ""])
     if report:
+        failed = [item for item in report.findings if item.status == "FAIL"]
+        blocking = [
+            item
+            for item in failed
+            if item.severity == "ERROR" and report.export_mode in item.blocks_modes
+        ]
+        recommended = [item for item in failed if item not in blocking]
         lines.extend(
             [
                 f"- Overall status: `{report.overall_status}`",
-                f"- Errors: {report.summary.get('errors', 0)}",
-                f"- Warnings: {report.summary.get('warnings', 0)}",
+                f"- Blocking updates: {len(blocking)}",
+                f"- Recommended updates: {len(recommended)}",
+                f"- Waiver records: {len(report.waiver_list)}",
+                f"- Findings waived: {_waived_finding_count(report)}",
                 "- Full machine-readable report: `validation_report.json`",
             ]
         )
@@ -249,6 +259,7 @@ def _review_summary_lines(semantic: SemanticLayer, report: ValidationReport | No
 def _replay_lines(semantic: SemanticLayer) -> list[str]:
     lines = [
         "ClaimTrace did not execute these files during import. Replay checks viewer behavior; it does not by itself validate a scientific claim.",
+        "Replay only native scripts you trust. Review raw or unknown commands first, and use an isolated, network-restricted viewer when provenance is uncertain.",
     ]
     unresolved = [
         resource.uri
@@ -279,13 +290,15 @@ def _replay_lines(semantic: SemanticLayer) -> list[str]:
         path = PurePosixPath(str(artifact.path))
         parent = path.parent.as_posix()
         filename = path.name
-        posix_name = "'" + filename.replace("'", "'\"'\"'") + "'"
-        powershell_name = filename.replace('"', '`"')
+        posix_parent = shlex.quote(parent)
+        posix_name = shlex.quote(filename)
+        powershell_parent = _powershell_quote(parent)
+        powershell_name = _powershell_quote(f".\\{filename}")
         lines.extend(
             [
                 f"- PyMOL scene: `{artifact.path}`. Start PyMOL with `{parent}` as the working directory so relative `load` paths resolve.",
-                f"  - Bash: `cd \"{parent}\" && pymol {posix_name}`",
-                f"  - PowerShell: `Set-Location \"{parent}\"; pymol \".\\{powershell_name}\"`",
+                f"  - Bash: `cd {posix_parent} && pymol {posix_name}`",
+                f"  - PowerShell: `Set-Location {powershell_parent}; pymol {powershell_name}`",
             ]
         )
     sessions = [
@@ -302,13 +315,15 @@ def _replay_lines(semantic: SemanticLayer) -> list[str]:
         path = PurePosixPath(str(artifact.path))
         parent = path.parent.as_posix()
         filename = path.name
-        posix_name = "'" + filename.replace("'", "'\"'\"'") + "'"
-        powershell_name = filename.replace('"', '`"')
+        posix_parent = shlex.quote(parent)
+        posix_name = shlex.quote(filename)
+        powershell_parent = _powershell_quote(parent)
+        powershell_name = _powershell_quote(f".\\{filename}")
         lines.extend(
             [
                 f"- ChimeraX scene: `{artifact.path}`. Start UCSF ChimeraX with `{parent}` as the working directory so relative `open` paths resolve.",
-                f"  - Bash: `cd \"{parent}\" && chimerax {posix_name}`",
-                f"  - PowerShell: `Set-Location \"{parent}\"; chimerax \".\\{powershell_name}\"`",
+                f"  - Bash: `cd {posix_parent} && chimerax {posix_name}`",
+                f"  - PowerShell: `Set-Location {powershell_parent}; chimerax {powershell_name}`",
             ]
         )
     inventories = {inventory.artifact_id: inventory for inventory in semantic.mvsx_inventories}
@@ -339,11 +354,17 @@ def _replay_lines(semantic: SemanticLayer) -> list[str]:
     return lines
 
 
+def _powershell_quote(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
 def _readiness_text(report: ValidationReport | None) -> str:
     if report is None:
         return "not validated"
     if report.overall_status == "pass":
-        return f"ready for `{report.export_mode}` handoff"
+        waived = _waived_finding_count(report)
+        suffix = f" with {waived} waived finding(s)" if waived else ""
+        return f"ready for `{report.export_mode}` handoff{suffix}"
     if report.overall_status == "pass_with_warnings":
         return f"ready for `{report.export_mode}` with warnings"
     if report.overall_status == "fail":
@@ -642,7 +663,14 @@ def _artifact_labels(ids: list[str], labels: dict[str, str]) -> list[str]:
 def _validation_next_actions(report: ValidationReport) -> list[str]:
     findings = [item for item in report.findings if item.status == "FAIL"]
     if not findings:
-        return ["", "Next actions:", f"- Package checks passed for `{report.export_mode}` mode."]
+        lines = ["", "Next actions:", f"- Package checks passed for `{report.export_mode}` mode."]
+        if report.waiver_list:
+            lines.append(f"- Review the {len(report.waiver_list)} recorded waiver(s) before reuse.")
+            for waiver in report.waiver_list[:5]:
+                lines.append(
+                    f"  - `{waiver.get('rule_id', 'unknown')}`: {waiver.get('reason', 'No reason recorded.')}"
+                )
+        return lines
     required = [
         item
         for item in findings
@@ -662,6 +690,10 @@ def _validation_next_actions(report: ValidationReport) -> list[str]:
         for item in recommended[:6]:
             lines.extend(_finding_lines(item))
     return lines
+
+
+def _waived_finding_count(report: ValidationReport) -> int:
+    return sum(1 for item in report.findings if item.status == "WAIVED")
 
 
 def _finding_lines(item) -> list[str]:

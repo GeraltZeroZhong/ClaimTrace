@@ -47,7 +47,7 @@ RULES = [
         "rule_id": "SCENE.HIDDEN.CRITICAL_REASON",
         "title": "Figure-central hidden entities include a reason",
         "gate": "G5_VISIBILITY",
-        "severity": "WARNING",
+        "severity": "ERROR",
         "finding_class": "DISCLOSURE_WARNING",
     },
     {

@@ -550,10 +550,15 @@ class SemanticLayer(StrictModel):
         )
 
     def add_activity(self, activity_type: str, description: str, **extra: Any) -> Activity:
+        agent_id = str(extra.pop("agent_id", "agent:claimtrace"))
+        used_artifact_ids = [str(value) for value in extra.pop("used_artifact_ids", [])]
+        generated_ids = [str(value) for value in extra.pop("generated_ids", [])]
         activity = Activity(
             id=f"activity:{activity_type}:{len(self.provenance.activities) + 1}",
             activity_type=activity_type,
-            agent_id="agent:claimtrace",
+            agent_id=agent_id,
+            used_artifact_ids=used_artifact_ids,
+            generated_ids=generated_ids,
             description=description,
             extensions=extra,
         )

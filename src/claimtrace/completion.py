@@ -87,11 +87,11 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "scene": {
             "color_meanings": {},
             "label_meanings": {},
-            "notes": "ClaimTrace records literal colors and labels automatically. Tool suggestions are not author-confirmed; confirm figure-central meanings or mark them presentation only.",
+            "notes": "",
         },
         "uncertainty": {
             "category": "scope",
-            "statement": "This package records a visual structure view and does not assert a molecular mechanism.",
+            "statement": "TODO: add a useful caveat, or set uncertainty: [] if none applies",
         },
         "reuse": {"license": "unknown", "citation": "unknown"},
     },
@@ -142,7 +142,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "scene": {
             "color_meanings": {},
             "label_meanings": {},
-            "notes": "Displayed, hidden, colored and labeled objects are auto-extracted from native artifacts. Confirm ligand/pocket visual meanings that support the figure message.",
+            "notes": "",
         },
         "uncertainty": {
             "category": "alternative_pose",
@@ -187,7 +187,11 @@ def completion_tasks_for_template(template: str) -> list[CompletionTask]:
                 field_use="Adds author context that native visualization files do not contain.",
                 examples=_section_examples(section, template),
                 accepted_values=["unknown", "not_applicable", "short author-provided value"],
-                blocking=section in {"claim", "evidence"},
+                blocking=(
+                    section == "claim"
+                    or template == "ligand-binding-pose"
+                    and section in {"entities", "evidence", "uncertainty"}
+                ),
             )
         )
     return tasks
@@ -258,6 +262,7 @@ def package_answer_template(semantic: SemanticLayer, template: str = "simple-str
     )
     _make_artifacts_package_aware(data, semantic)
     _make_evidence_package_aware(data, semantic)
+    _make_scenes_package_aware(data, semantic)
     if semantic.selections:
         data["selections"] = [
             {
@@ -333,9 +338,11 @@ def dump_package_answer_template(semantic: SemanticLayer, template: str = "simpl
         [
             "# ClaimTrace answers",
             "# Fill claim.claim_text and claim.figure_ref first. Fill evidence[].method_name and result_summary only for evidence you actually have.",
+            "# uncertainty: replace the placeholder with an author-reviewed caveat, or use uncertainty: [] if none applies.",
             "# artifacts: leave empty when init/add-artifact already included the files; otherwise add paths to copy.",
             "# entities/selections: fill only molecules, chains, residues or selections readers must identify.",
             "# scene_semantics_by_operation: edit only entries listed here; they are keyed by operation_ids.",
+            "# In multi-scene packages, choose claim.scene_ids and assign each render_artifact_id only to its matching scene.",
             "# ClaimTrace auto-annotates literal color/label/display facts. The candidate_meaning field is a tool suggestion, not an author-confirmed meaning.",
             "# For each color/label suggestion choose one:",
             "#   meaning_status: user_confirmed_meaning          # visual choice carries the figure message",
@@ -368,14 +375,30 @@ def apply_answers(
     _apply_selections(semantic, answers.get("selections", []))
     _apply_scene_semantics(semantic, answers.get("scenes", answers.get("scene", {})))
     claims = _coerce_list(answers.get("claims", answers.get("claim")))
-    claim_ids = [_apply_claim(semantic, item) for item in claims if isinstance(item, dict)]
+    claim_items = [item for item in claims if isinstance(item, dict)]
+    claim_ids = [
+        _apply_claim(semantic, item, answer_index=index, answer_count=len(claim_items))
+        for index, item in enumerate(claim_items)
+    ]
     evidence_ids = _apply_evidence(root, semantic, answers.get("evidence", []), answer_base, claim_ids)
     uncertainty_ids = _apply_uncertainty(semantic, answers.get("uncertainty", []), claim_ids)
     for claim in semantic.claims:
         if claim.id in claim_ids or (not claim_ids and claim.review_status in {ReviewStatus.confirmed, ReviewStatus.human_accepted}):
-            claim.evidence_ids = sorted(set(claim.evidence_ids + evidence_ids))
-            claim.uncertainty_ids = sorted(set(claim.uncertainty_ids + uncertainty_ids))
-            if not claim.scene_ids:
+            linked_evidence_ids = [
+                evidence.id
+                for evidence in semantic.evidence
+                if evidence.id in evidence_ids and claim.id in evidence.claim_ids
+            ]
+            linked_uncertainty_ids = [
+                uncertainty.id
+                for uncertainty in semantic.uncertainty
+                if uncertainty.id in uncertainty_ids and claim.id in uncertainty.claim_ids
+            ]
+            claim.evidence_ids = sorted(set(claim.evidence_ids + linked_evidence_ids))
+            claim.uncertainty_ids = sorted(
+                set(claim.uncertainty_ids + linked_uncertainty_ids)
+            )
+            if not claim.scene_ids and len(semantic.scenes) == 1:
                 claim.scene_ids = [scene.id for scene in semantic.scenes]
     _apply_software(semantic, answers.get("software", []))
     _mark_tasks_answered(semantic)
@@ -404,6 +427,7 @@ def check_answers(
     if "reuse" not in answers:
         problems.append("Missing reuse section.")
     problems.extend(_check_required_content(answers, semantic))
+    problems.extend(_check_scene_links(answers, semantic))
     if root is not None:
         problems.extend(_check_answer_artifact_paths(answers, root, answer_base or root))
     return problems
@@ -427,7 +451,9 @@ def completed_answer_sections(answers: dict[str, Any]) -> set[str]:
         completed.add("claim")
 
     evidence = _coerce_list(answers.get("evidence", []))
-    if evidence and all(
+    if "evidence" in answers and not evidence:
+        completed.add("evidence")
+    elif evidence and all(
         isinstance(item, dict)
         and not _is_placeholder(item.get("result_summary"))
         and any(
@@ -456,7 +482,9 @@ def completed_answer_sections(answers: dict[str, Any]) -> set[str]:
     if "scene" in answers or "scenes" in answers or "scene_semantics_by_operation" in answers:
         completed.add("scene")
     uncertainty = _coerce_list(answers.get("uncertainty", []))
-    if uncertainty and all(
+    if "uncertainty" in answers and not uncertainty:
+        completed.add("uncertainty")
+    elif uncertainty and all(
         not _is_placeholder(item.get("statement") if isinstance(item, dict) else item)
         for item in uncertainty
     ):
@@ -570,6 +598,37 @@ def _make_evidence_package_aware(data: dict[str, Any], semantic: SemanticLayer) 
     data["evidence"] = evidence_items
 
 
+def _make_scenes_package_aware(data: dict[str, Any], semantic: SemanticLayer) -> None:
+    if not semantic.scenes:
+        return
+    claims = _coerce_list(data.get("claims", data.get("claim")))
+    for claim in claims:
+        if not isinstance(claim, dict):
+            continue
+        if len(semantic.scenes) == 1:
+            claim["scene_ids"] = [semantic.scenes[0].id]
+        else:
+            claim["scene_ids"] = []
+            claim["available_scene_ids"] = [scene.id for scene in semantic.scenes]
+    if len(semantic.scenes) == 1:
+        return
+    data["available_render_artifacts"] = [
+        {"id": artifact.id, "path": artifact.path or artifact.url or "unknown"}
+        for artifact in semantic.artifacts
+        if artifact.role.value == "render_image"
+    ]
+    base = data.pop("scene", {})
+    base = base if isinstance(base, dict) else {}
+    data["scenes"] = [
+        {
+            **base,
+            "scene_ids": [scene.id],
+            "render_artifact_ids": list(scene.render_artifact_ids),
+        }
+        for scene in semantic.scenes
+    ]
+
+
 def _check_required_content(answers: dict[str, Any], semantic: SemanticLayer | None) -> list[str]:
     problems: list[str] = []
     claims = _coerce_list(answers.get("claims", answers.get("claim")))
@@ -578,6 +637,7 @@ def _check_required_content(answers: dict[str, Any], semantic: SemanticLayer | N
         for item in claims
         if isinstance(item, dict)
     }
+    seen_claim_ids: set[str] = set()
     for index, item in enumerate(claims):
         if not isinstance(item, dict):
             problems.append(f"claim[{index}] must be a mapping.")
@@ -586,6 +646,23 @@ def _check_required_content(answers: dict[str, Any], semantic: SemanticLayer | N
             problems.append("claim.claim_text is still unknown; write the figure or panel message.")
         if _is_placeholder(item.get("figure_ref")):
             problems.append("claim.figure_ref is still unknown; write the figure or panel label.")
+        if len(claims) > 1:
+            claim_id = str(item.get("id", "")).strip()
+            if not claim_id:
+                problems.append(f"claims[{index}].id is required when an answers file has multiple claims.")
+            elif claim_id in seen_claim_ids:
+                problems.append(f"claims[{index}].id is duplicated: {claim_id}")
+            seen_claim_ids.add(claim_id)
+        if semantic is not None:
+            scene_ids = [str(value) for value in _coerce_list(item.get("scene_ids", []))]
+            if len(semantic.scenes) > 1 and not scene_ids:
+                problems.append(
+                    "claim.scene_ids must choose at least one scene because this package contains multiple scenes."
+                )
+            known_scene_ids = {scene.id for scene in semantic.scenes}
+            for scene_id in scene_ids:
+                if scene_id not in known_scene_ids:
+                    problems.append(f"claims[{index}].scene_ids references unknown scene_id: {scene_id}")
     for index, item in enumerate(_coerce_list(answers.get("evidence", []))):
         if not isinstance(item, dict):
             problems.append(f"evidence[{index}] must be a mapping.")
@@ -637,6 +714,40 @@ def _check_required_content(answers: dict[str, Any], semantic: SemanticLayer | N
         statement = item.get("statement") if isinstance(item, dict) else item
         if _is_placeholder(statement):
             problems.append(f"uncertainty[{index}].statement is still unknown.")
+    return problems
+
+
+def _check_scene_links(
+    answers: dict[str, Any],
+    semantic: SemanticLayer | None,
+) -> list[str]:
+    if semantic is None:
+        return []
+    problems: list[str] = []
+    known_scene_ids = {scene.id for scene in semantic.scenes}
+    render_ids = {
+        artifact.id for artifact in semantic.artifacts if artifact.role.value == "render_image"
+    }
+    for index, item in enumerate(_coerce_list(answers.get("scenes", answers.get("scene", [])))):
+        if not isinstance(item, dict):
+            problems.append(f"scenes[{index}] must be a mapping.")
+            continue
+        target_ids = [str(value) for value in _coerce_list(item.get("scene_ids", []))]
+        for scene_id in target_ids:
+            if scene_id not in known_scene_ids:
+                problems.append(f"scenes[{index}] references unknown scene_id: {scene_id}")
+        linked_renders = [
+            str(value) for value in _coerce_list(item.get("render_artifact_ids", []))
+        ]
+        if linked_renders and len(semantic.scenes) > 1 and not target_ids:
+            problems.append(
+                f"scenes[{index}] must include scene_ids before assigning render_artifact_ids in a multi-scene package."
+            )
+        for artifact_id in linked_renders:
+            if artifact_id not in render_ids:
+                problems.append(
+                    f"scenes[{index}] references unknown rendered-image artifact_id: {artifact_id}"
+                )
     return problems
 
 
@@ -705,13 +816,59 @@ def _check_cxc_mvs_answers(answers: dict[str, Any], semantic: SemanticLayer | No
     raw_ids = {raw.raw_id for raw in semantic.raw_native_observations}
     resource_ref_ids = {resource.resource_ref_id for resource in semantic.resource_references}
     artifact_ids = {artifact.id for artifact in semantic.artifacts}
+    scene_ids = {scene.id for scene in semantic.scenes}
     claim_ids = {claim.id for claim in semantic.claims}
     claim_ids.update(
         str(item.get("id"))
         for item in _coerce_list(answers.get("claims", answers.get("claim")))
         if isinstance(item, dict) and item.get("id")
     )
-    anchor_ids = operation_ids | native_ref_ids | raw_ids | resource_ref_ids | artifact_ids
+    evidence_ids = {item.id for item in semantic.evidence}
+    uncertainty_ids = {item.id for item in semantic.uncertainty}
+    entity_ids = {item.id for item in semantic.entities}
+    selection_ids = {item.id for item in semantic.selections}
+    binding_ids = {item.binding_id for item in semantic.evidence_bindings}
+    software_ids = {item.id for item in semantic.software_environment}
+    activity_ids = {item.id for item in semantic.provenance.activities}
+    agent_ids = {item.id for item in semantic.provenance.agents}
+    member_ids = {
+        member.member_id
+        for inventory in semantic.mvsx_inventories
+        for member in inventory.members
+    }
+    answer_id_fields = {
+        "evidence": "id",
+        "uncertainty": "id",
+        "entities": "id",
+        "selections": "id",
+        "software": "id",
+        "evidence_bindings": "binding_id",
+    }
+    answer_anchor_ids = {
+        str(item[id_field])
+        for field, id_field in answer_id_fields.items()
+        for item in _coerce_list(answers.get(field, []))
+        if isinstance(item, dict) and item.get(id_field)
+    }
+    anchor_ids = (
+        operation_ids
+        | native_ref_ids
+        | raw_ids
+        | resource_ref_ids
+        | artifact_ids
+        | scene_ids
+        | claim_ids
+        | evidence_ids
+        | uncertainty_ids
+        | entity_ids
+        | selection_ids
+        | binding_ids
+        | software_ids
+        | activity_ids
+        | agent_ids
+        | member_ids
+        | answer_anchor_ids
+    )
     for index, item in enumerate(_coerce_list(answers.get("native_identity_mappings", []))):
         native_ref_id = str(item.get("native_ref_id", "")) if isinstance(item, dict) else ""
         if native_ref_id and native_ref_id not in native_ref_ids:
@@ -1166,12 +1323,38 @@ def _apply_scene_semantics(semantic: SemanticLayer, items: Any) -> None:
         target_scenes = [
             scene for scene in semantic.scenes if not target_ids or scene.id in target_ids
         ]
-        if not target_scenes and semantic.scenes:
+        if not target_scenes and semantic.scenes and not target_ids:
             target_scenes = semantic.scenes
+        color_meanings = dict(item.get("color_meanings", {}))
+        label_meanings = dict(item.get("label_meanings", {}))
+        notes = str(item.get("notes", "")).strip()
+        if "render_artifact_ids" in item:
+            render_ids = [
+                str(value) for value in _coerce_list(item.get("render_artifact_ids", []))
+            ]
+            known_render_ids = {
+                artifact.id
+                for artifact in semantic.artifacts
+                if artifact.role.value == "render_image"
+            }
+            unknown = sorted(set(render_ids) - known_render_ids)
+            if unknown:
+                raise ValueError(
+                    "Scene answer references unknown rendered-image artifact IDs: "
+                    + ", ".join(unknown)
+                )
+            if render_ids and len(semantic.scenes) > 1 and not target_ids:
+                raise ValueError(
+                    "Multi-scene render links require explicit scene_ids; ClaimTrace will not guess the matching scene."
+                )
+            for scene in target_scenes:
+                scene.render_artifact_ids = sorted(set(render_ids))
+        if not color_meanings and not label_meanings and not notes:
+            continue
         semantics = {
-            "color_meanings": dict(item.get("color_meanings", {})),
-            "label_meanings": dict(item.get("label_meanings", {})),
-            "notes": str(item.get("notes", "")),
+            "color_meanings": color_meanings,
+            "label_meanings": label_meanings,
+            "notes": notes,
             "review_status": str(item.get("review_status", "confirmed")),
             "reviewer": str(item.get("reviewer", "author")),
             "reviewed_at": utc_now(),
@@ -1218,8 +1401,21 @@ def _apply_legacy_visual_meanings_to_operations(semantic: SemanticLayer, semanti
         operation.review_status = ReviewStatus.confirmed
 
 
-def _apply_claim(semantic: SemanticLayer, data: dict[str, Any]) -> str:
-    claim_id = str(data.get("id") or (semantic.claims[0].id if semantic.claims else f"claim:{uuid4().hex[:12]}"))
+def _apply_claim(
+    semantic: SemanticLayer,
+    data: dict[str, Any],
+    *,
+    answer_index: int = 0,
+    answer_count: int = 1,
+) -> str:
+    claim_id = str(
+        data.get("id")
+        or (
+            semantic.claims[0].id
+            if answer_count == 1 and semantic.claims
+            else _answer_object_id(semantic, "claim", answer_index)
+        )
+    )
     review_status = ReviewStatus(str(data.get("review_status", "confirmed")))
     claim = Claim(
         id=claim_id,
@@ -1240,7 +1436,7 @@ def _apply_claim(semantic: SemanticLayer, data: dict[str, Any]) -> str:
         claim_status=str(data.get("claim_status", "reviewable")),
         review_status=review_status,
     )
-    if not claim.scene_ids:
+    if not claim.scene_ids and len(semantic.scenes) == 1:
         claim.scene_ids = [scene.id for scene in semantic.scenes]
     _upsert(semantic.claims, claim)
     return claim.id
@@ -1402,12 +1598,26 @@ def _upsert_evidence_binding(items: list[EvidenceBinding], item: EvidenceBinding
     items.append(item)
 
 
-def ensure_scene_for_images(semantic: SemanticLayer) -> None:
-    render_ids = [artifact.id for artifact in semantic.artifacts if artifact.role.value == "render_image"]
+def ensure_scene_for_images(
+    semantic: SemanticLayer,
+    render_ids: list[str] | None = None,
+    *,
+    scene_id: str | None = None,
+) -> None:
+    render_ids = render_ids or [
+        artifact.id for artifact in semantic.artifacts if artifact.role.value == "render_image"
+    ]
     if not render_ids:
         return
+    if scene_id is not None:
+        scene = next((item for item in semantic.scenes if item.id == scene_id), None)
+        if scene is None:
+            raise ValueError(f"Unknown scene id for rendered panel: {scene_id}")
+        scene.render_artifact_ids = sorted(set(scene.render_artifact_ids + render_ids))
+        return
     if semantic.scenes:
-        for scene in semantic.scenes:
+        if len(semantic.scenes) == 1:
+            scene = semantic.scenes[0]
             scene.render_artifact_ids = sorted(set(scene.render_artifact_ids + render_ids))
         return
     semantic.scenes.append(

@@ -156,6 +156,7 @@ def test_supported_native_formats_complete_archive_and_export(tmp_path: Path, su
     answers = _simple_yaml.loads(answers_path.read_text(encoding="utf-8"))
     answers["claim"]["claim_text"] = "The panel shows the attached molecular structure."
     answers["claim"]["figure_ref"] = "Figure 1A"
+    answers["uncertainty"] = []
     for evidence in answers.get("evidence", []):
         evidence["method_name"] = "Author visual review"
         evidence["result_summary"] = "The native scene, structure and rendered panel were reviewed together."

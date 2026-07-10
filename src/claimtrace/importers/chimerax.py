@@ -188,7 +188,13 @@ class ChimeraXImporter:
         return 0.98 if path.suffix.lower() == ".cxc" else 0.0
 
     def import_into(self, path: Path, artifact_id: str, semantic: SemanticLayer) -> ImportResult:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        try:
+            text = path.read_text(encoding="utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise ValueError(
+                f"ChimeraX scene is not valid UTF-8 near byte {exc.start}: {path}. "
+                "Save the file as UTF-8 and try again."
+            ) from exc
         scene_id = _ensure_scene(semantic, artifact_id)
         facts: list[ExtractedFact] = []
         warnings: list[str] = []

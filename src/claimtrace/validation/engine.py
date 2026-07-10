@@ -4,15 +4,22 @@ from __future__ import annotations
 
 import json
 import re
+import stat
+import unicodedata
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import jsonschema
 
-from claimtrace.constants import CAL_SCHEMA_VERSION, SEMANTIC_LAYER_FILENAME
+from claimtrace._finite import ensure_finite
+from claimtrace.constants import CAL_SCHEMA_VERSION, EXPORT_MARKER_FILENAME, SEMANTIC_LAYER_FILENAME
+from claimtrace.errors import SecurityError
+from claimtrace.importers.molviewspec import read_mvs
 from claimtrace.models import SemanticLayer
 from claimtrace.models.semantic_layer import (
     ArtifactKind,
+    ArtifactRole,
     ClaimCriticalStatus,
     ClaimType,
     EvidenceKind,
@@ -20,26 +27,40 @@ from claimtrace.models.semantic_layer import (
     ReviewStatus,
 )
 from claimtrace.models.validation import SemanticLayerRef, ValidationFinding, ValidationReport
-from claimtrace.package.checksums import file_size, sha256_file
+from claimtrace.package.checksums import (
+    directory_size,
+    file_size,
+    is_sha256_digest,
+    sha256_directory,
+    sha256_file,
+)
 from claimtrace.package.layout import load_semantic_layer
 from claimtrace.package.paths import ensure_relative_path, resolve_package_path, safe_walk
-from claimtrace.package.resources import resource_matches_artifact, resource_uri_summary
+from claimtrace.package.resources import (
+    resource_matching_artifacts,
+    resource_uri_summary,
+)
 from claimtrace.schemas import semantic_layer_schema
 from claimtrace.validation.findings import finding
 from claimtrace.validation.rules import waiver_covers
 
 SECRET_PATTERNS = [
     re.compile(r"(?i)(api[_-]?key|token|secret)[\"'\s:=]+[A-Za-z0-9_\-]{16,}"),
+    re.compile(r"(?i)\bauthorization\s*:\s*bearer\s+[A-Za-z0-9._~+/=-]{12,}"),
+    re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"),
+    re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"),
+    re.compile(r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----"),
+    re.compile(r"(?i)\bpassword\s*[:=]\s*[\"']?[^\s\"']{8,}"),
+    re.compile(r"(?i)\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis)://[^/\s:@]+:[^@\s/]+@"),
+    re.compile(r"(?i)\bhttps?://[^/\s:@]+:[^@\s/]+@"),
     re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
     re.compile(r"/home/[A-Za-z0-9_.-]+/"),
     re.compile(r"/Users/[A-Za-z0-9_.-]+/"),
     re.compile(r"(?i)[A-Z]:[\\/]Users[\\/][^\\/\s]+[\\/]"),
 ]
-TEXT_PRIVACY_SUFFIXES = {
-    ".txt", ".md", ".csv", ".tsv", ".json", ".yaml", ".yml",
-    ".pml", ".cxc", ".mvsj", ".py", ".ipynb", ".log",
-}
 MAX_PRIVACY_SCAN_BYTES = 2 * 1024 * 1024
+MAX_SEMANTIC_LAYER_BYTES = 32 * 1024 * 1024
+MAX_CHECKSUM_MANIFEST_BYTES = 16 * 1024 * 1024
 VALIDATION_MODES = {"draft", "internal", "share", "archive"}
 
 
@@ -67,6 +88,45 @@ def validate_package(root: Path, mode: str = "draft", *, revalidation: dict[str,
                     pointer="/",
                     blocks=["draft", "internal", "share", "archive"],
                     fix=f"Run `claimtrace init --native <file.pml> --image <figure.png> --out {root}` or check the package path.",
+                )
+            ],
+            semantic=None,
+            root=root,
+            revalidation=revalidation,
+        )
+    try:
+        semantic_stat = semantic_path.lstat()
+        if not stat.S_ISREG(semantic_stat.st_mode) or semantic_path.is_symlink():
+            raise SecurityError("semantic_layer.json must be a regular file, not a link or special file")
+        if semantic_stat.st_size > MAX_SEMANTIC_LAYER_BYTES:
+            raise SecurityError(
+                f"semantic_layer.json exceeds the {MAX_SEMANTIC_LAYER_BYTES // (1024 * 1024)} MiB safety limit"
+            )
+    except (OSError, SecurityError) as exc:
+        rule_id = "SECURITY.PATH.SEMANTIC_FILE"
+        message = f"Cannot read the canonical manifest safely: {exc}"
+        try:
+            if semantic_path.is_symlink() and not semantic_path.resolve().is_relative_to(root.resolve()):
+                rule_id = "SECURITY.PATH.TRAVERSAL"
+                message = "semantic_layer.json must not resolve outside the package directory."
+        except OSError:
+            pass
+        semantic_ref = SemanticLayerRef(path=SEMANTIC_LAYER_FILENAME, sha256="", schema_version="unknown")
+        return _report(
+            package_id=root.name,
+            semantic_ref=semantic_ref,
+            mode=mode,
+            findings=[
+                finding(
+                    rule_id,
+                    "G0_PARSEABLE",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "SECURITY_BLOCKER",
+                    message,
+                    pointer="/semantic_layer.json",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Replace it with a regular, package-local ClaimTrace semantic_layer.json file.",
                 )
             ],
             semantic=None,
@@ -123,7 +183,14 @@ def validate_package(root: Path, mode: str = "draft", *, revalidation: dict[str,
             revalidation=revalidation,
         )
     try:
-        raw = json.loads(semantic_path.read_text(encoding="utf-8"))
+        raw = ensure_finite(
+            json.loads(
+                semantic_path.read_text(encoding="utf-8"),
+                parse_constant=lambda value: (_ for _ in ()).throw(
+                    ValueError(f"non-finite numeric constant {value} is not valid JSON")
+                ),
+            )
+        )
     except Exception as exc:
         semantic_ref = SemanticLayerRef(path=SEMANTIC_LAYER_FILENAME, sha256="", schema_version="unknown")
         return _report(
@@ -224,13 +291,17 @@ def validate_package(root: Path, mode: str = "draft", *, revalidation: dict[str,
             )
             semantic = None
     if semantic is not None:
-        findings.extend(_checksum_manifest_findings(root))
+        tree_findings = _package_tree_findings(root)
+        findings.extend(tree_findings)
+        if not tree_findings:
+            findings.extend(_checksum_manifest_findings(root))
         findings.extend(_fixity_findings(root, semantic))
         findings.extend(_reference_findings(semantic))
         findings.extend(_claim_findings(semantic))
         findings.extend(_visibility_findings(semantic))
         findings.extend(_native_scene_anchor_findings(semantic, mode))
-        findings.extend(_privacy_findings(root, semantic, mode))
+        if not tree_findings:
+            findings.extend(_privacy_findings(root, semantic, mode))
         _apply_waivers(findings, semantic, mode)
     return _report(
         package_id=semantic.package.package_id if semantic else root.name,
@@ -247,6 +318,54 @@ def _fixity_findings(root: Path, semantic: SemanticLayer) -> list[ValidationFind
     findings: list[ValidationFinding] = []
     for index, artifact in enumerate(semantic.artifacts):
         pointer = f"/artifacts/{index}"
+        kind_errors: list[str] = []
+        if artifact.kind == ArtifactKind.remote:
+            if not artifact.url:
+                kind_errors.append("remote artifacts require url")
+            if artifact.path:
+                kind_errors.append("remote artifacts cannot use a package path")
+            if artifact.included:
+                kind_errors.append("remote artifacts must have included=false")
+        elif artifact.kind == ArtifactKind.local_attached:
+            if not artifact.path:
+                kind_errors.append("attached artifacts require a package path")
+            if not artifact.included:
+                kind_errors.append("attached artifacts must have included=true")
+            if artifact.url:
+                kind_errors.append("attached artifacts cannot use url")
+        elif artifact.kind == ArtifactKind.local_detached:
+            if not artifact.path:
+                kind_errors.append("detached artifacts require a recorded path")
+            if artifact.included:
+                kind_errors.append("detached artifacts must have included=false")
+        if kind_errors:
+            findings.append(
+                finding(
+                    "G2.ARTIFACT.KIND_INCONSISTENT",
+                    "G2_FIXITY",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    f"Artifact {artifact.id} has inconsistent kind metadata: {'; '.join(kind_errors)}.",
+                    pointer=pointer,
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Make kind, path/url and included describe the same attached, detached or remote state.",
+                )
+            )
+        if artifact.sha256 is not None and not is_sha256_digest(artifact.sha256):
+            findings.append(
+                finding(
+                    "G2.FIXITY.INVALID_SHA256",
+                    "G2_FIXITY",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    f"Artifact {artifact.id} has a malformed expected SHA-256 digest.",
+                    pointer=f"{pointer}/sha256",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Record exactly 64 hexadecimal SHA-256 characters, or remove the invalid value.",
+                )
+            )
         if artifact.kind == ArtifactKind.remote:
             if not artifact.sha256:
                 findings.append(
@@ -256,7 +375,7 @@ def _fixity_findings(root: Path, semantic: SemanticLayer) -> list[ValidationFind
                         "L0_PACKAGE_INTEGRITY",
                         "WARNING",
                         "DISCLOSURE_WARNING",
-                    f"Remote file {artifact.id} is listed without an expected checksum.",
+                        f"Remote file {artifact.id} is listed without an expected checksum.",
                         pointer=pointer,
                         blocks=["archive"],
                         waivable=True,
@@ -328,9 +447,28 @@ def _fixity_findings(root: Path, semantic: SemanticLayer) -> list[ValidationFind
                 )
             )
             continue
-        if path.is_file():
-            actual_hash = sha256_file(path)
-            actual_size = file_size(path)
+        if artifact.role == ArtifactRole.render_image:
+            try:
+                from claimtrace.importers.image import inspect_image
+
+                inspect_image(path)
+            except (OSError, ValueError) as exc:
+                findings.append(
+                    finding(
+                        "G2.RENDER.INVALID_IMAGE",
+                        "G2_FIXITY",
+                        "L2_VISUAL_REPRODUCIBILITY",
+                        "ERROR",
+                        "INTEGRITY_ERROR",
+                        f"Rendered panel cannot be opened as a valid image: {artifact.path} ({exc})",
+                        pointer=pointer,
+                        blocks=["draft", "internal", "share", "archive"],
+                        fix="Replace the file with a valid PNG, JPEG, GIF, TIFF, WebP or well-formed SVG and re-register it.",
+                    )
+                )
+        if path.is_file() or path.is_dir():
+            actual_hash = sha256_directory(path) if path.is_dir() else sha256_file(path)
+            actual_size = directory_size(path) if path.is_dir() else file_size(path)
             if artifact.sha256 != actual_hash:
                 findings.append(
                     finding(
@@ -359,7 +497,115 @@ def _fixity_findings(root: Path, semantic: SemanticLayer) -> list[ValidationFind
                         fix="Re-register the artifact or restore the original file.",
                     )
                 )
+    for inventory_index, inventory in enumerate(semantic.mvsx_inventories):
+        for member_index, member in enumerate(inventory.members):
+            if member.sha256 is not None and not is_sha256_digest(member.sha256):
+                findings.append(
+                    finding(
+                        "G2.FIXITY.INVALID_SHA256",
+                        "G2_FIXITY",
+                        "L0_PACKAGE_INTEGRITY",
+                        "ERROR",
+                        "INTEGRITY_ERROR",
+                        f"MVSX member {member.member_id} has a malformed SHA-256 digest.",
+                        pointer=f"/mvsx_inventories/{inventory_index}/members/{member_index}/sha256",
+                        blocks=["draft", "internal", "share", "archive"],
+                        fix="Re-import the MVSX archive to recompute its member checksum.",
+                    )
+                )
+    findings.extend(_mvsx_inventory_integrity_findings(root, semantic))
     return findings
+
+
+def _mvsx_inventory_integrity_findings(
+    root: Path,
+    semantic: SemanticLayer,
+) -> list[ValidationFinding]:
+    findings: list[ValidationFinding] = []
+    artifact_by_id = {artifact.id: artifact for artifact in semantic.artifacts}
+    for index, inventory in enumerate(semantic.mvsx_inventories):
+        artifact = artifact_by_id.get(inventory.artifact_id)
+        pointer = f"/mvsx_inventories/{index}"
+        if artifact is None or artifact.kind != ArtifactKind.local_attached or not artifact.path:
+            continue
+        try:
+            archive_path = resolve_package_path(root, artifact.path)
+            actual = read_mvs(archive_path, artifact.id).inventory
+            if actual is None:
+                raise ValueError("artifact is not an MVSX archive")
+            recorded_members = sorted(
+                (member.normalized_name, member.is_dir, member.sha256, member.byte_size)
+                for member in inventory.members
+            )
+            actual_members = sorted(
+                (member.normalized_name, member.is_dir, member.sha256, member.byte_size)
+                for member in actual.members
+            )
+            matches = (
+                inventory.scene_entry == actual.scene_entry
+                and inventory.format_status == actual.format_status
+                and recorded_members == actual_members
+            )
+        except Exception as exc:
+            matches = False
+            detail = str(exc)
+        else:
+            detail = "recorded inventory differs from the current archive"
+        if not matches:
+            findings.append(
+                finding(
+                    "G2.FIXITY.MVSX_INVENTORY_MISMATCH",
+                    "G2_FIXITY",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    f"MVSX inventory cannot be verified: {detail}.",
+                    pointer=pointer,
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Re-register the MVSX archive to rebuild its member inventory.",
+                )
+            )
+    return findings
+
+
+def _package_tree_findings(root: Path) -> list[ValidationFinding]:
+    try:
+        paths = list(safe_walk(root, include_directories=True))
+    except (OSError, SecurityError) as exc:
+        return [
+            finding(
+                "SECURITY.PATH.SYMLINK",
+                "G2_FIXITY",
+                "L0_PACKAGE_INTEGRITY",
+                "ERROR",
+                "SECURITY_BLOCKER",
+                f"Package tree cannot be traversed safely: {exc}",
+                pointer="/",
+                blocks=["draft", "internal", "share", "archive"],
+                fix="Replace symbolic links or special paths with regular package-local files.",
+            )
+        ]
+    portable_paths: dict[str, str] = {}
+    for path in paths:
+        relative = path.relative_to(root.resolve()).as_posix()
+        portable = unicodedata.normalize("NFC", relative).casefold()
+        previous = portable_paths.get(portable)
+        if previous is not None and previous != relative:
+            return [
+                finding(
+                    "SECURITY.PATH.PORTABILITY_COLLISION",
+                    "G2_FIXITY",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "SECURITY_BLOCKER",
+                    f"Package paths collide on case-insensitive filesystems: {previous} and {relative}.",
+                    pointer="/",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Rename one file so normalized, case-insensitive paths are unique.",
+                )
+            ]
+        portable_paths[portable] = relative
+    return []
 
 
 def _checksum_manifest_findings(root: Path) -> list[ValidationFinding]:
@@ -372,12 +618,31 @@ def _checksum_manifest_findings(root: Path) -> list[ValidationFinding]:
 
     manifest = root / "checksums" / "sha256.txt"
     if not manifest.exists():
+        if (root / EXPORT_MARKER_FILENAME).exists():
+            return [
+                finding(
+                    "G2.FIXITY.MANIFEST_MISSING",
+                    "G2_FIXITY",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    "This exported package is missing checksums/sha256.txt.",
+                    pointer="/checksums/sha256.txt",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Restore the checksum manifest or re-export the original package.",
+                )
+            ]
         return []
     findings: list[ValidationFinding] = []
     expected: dict[str, str] = {}
     try:
         if manifest.is_symlink():
             raise ValueError("checksum manifest must be a regular package file")
+        manifest_stat = manifest.lstat()
+        if not stat.S_ISREG(manifest_stat.st_mode):
+            raise ValueError("checksum manifest must be a regular package file")
+        if manifest_stat.st_size > MAX_CHECKSUM_MANIFEST_BYTES:
+            raise ValueError("checksum manifest exceeds the 16 MiB safety limit")
         for line_no, raw_line in enumerate(manifest.read_text(encoding="utf-8").splitlines(), start=1):
             if not raw_line.strip():
                 continue
@@ -496,14 +761,111 @@ def _reference_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
     selection_ids = {item.id for item in semantic.selections}
     artifact_ids = {item.id for item in semantic.artifacts}
     operation_ids = {item.operation_id for item in semantic.observed_scene_operations}
+    native_ref_ids = {item.native_ref_id for item in semantic.native_references}
+    raw_ids = {item.raw_id for item in semantic.raw_native_observations}
     resource_ref_ids = {item.resource_ref_id for item in semantic.resource_references}
+    binding_ids = {item.binding_id for item in semantic.evidence_bindings}
+    software_ids = {item.id for item in semantic.software_environment}
+    activity_ids = {item.id for item in semantic.provenance.activities}
+    agent_ids = {item.id for item in semantic.provenance.agents}
+    member_ids = {
+        member.member_id
+        for inventory in semantic.mvsx_inventories
+        for member in inventory.members
+    }
+    all_object_ids = (
+        claim_ids
+        | scene_ids
+        | evidence_ids
+        | uncertainty_ids
+        | entity_ids
+        | selection_ids
+        | artifact_ids
+        | operation_ids
+        | native_ref_ids
+        | raw_ids
+        | resource_ref_ids
+        | binding_ids
+        | software_ids
+        | activity_ids
+        | agent_ids
+        | member_ids
+    )
+    duplicate_collections = [
+        ("claims", semantic.claims, "id"),
+        ("scenes", semantic.scenes, "id"),
+        ("evidence", semantic.evidence, "id"),
+        ("uncertainty", semantic.uncertainty, "id"),
+        ("entities", semantic.entities, "id"),
+        ("selections", semantic.selections, "id"),
+        ("observed_scene_operations", semantic.observed_scene_operations, "operation_id"),
+        ("native_references", semantic.native_references, "native_ref_id"),
+        ("raw_native_observations", semantic.raw_native_observations, "raw_id"),
+        ("resource_references", semantic.resource_references, "resource_ref_id"),
+        ("evidence_bindings", semantic.evidence_bindings, "binding_id"),
+        ("software_environment", semantic.software_environment, "id"),
+        ("provenance/agents", semantic.provenance.agents, "id"),
+        ("provenance/activities", semantic.provenance.activities, "id"),
+    ]
+    for collection_name, collection, attribute in duplicate_collections:
+        counts: dict[str, int] = {}
+        for value in collection:
+            identifier = str(getattr(value, attribute))
+            counts[identifier] = counts.get(identifier, 0) + 1
+        for identifier, count in sorted(counts.items()):
+            if count > 1:
+                findings.append(
+                    finding(
+                        "G3.REFERENCE.DUPLICATE_ID",
+                        "G3_REFERENCE",
+                        "L0_PACKAGE_INTEGRITY",
+                        "ERROR",
+                        "INTEGRITY_ERROR",
+                        f"ID {identifier} appears {count} times in {collection_name}.",
+                        pointer=f"/{collection_name}",
+                        blocks=["draft", "internal", "share", "archive"],
+                        fix="Assign a unique ID to each record, then update references to it.",
+                    )
+                )
     claims_by_id = {item.id: item for item in semantic.claims}
     evidence_by_id = {item.id: item for item in semantic.evidence}
     uncertainty_by_id = {item.id: item for item in semantic.uncertainty}
+    for field_name, values in (
+        ("path", [item.path for item in semantic.artifacts if item.path]),
+        ("url", [item.url for item in semantic.artifacts if item.url]),
+    ):
+        counts: dict[str, int] = {}
+        for value in values:
+            normalized = str(value).replace("\\", "/")
+            counts[normalized] = counts.get(normalized, 0) + 1
+        for value, count in sorted(counts.items()):
+            if count > 1:
+                findings.append(
+                    finding(
+                        "G3.REFERENCE.DUPLICATE_ARTIFACT_LOCATION",
+                        "G3_REFERENCE",
+                        "L0_PACKAGE_INTEGRITY",
+                        "ERROR",
+                        "INTEGRITY_ERROR",
+                        f"Artifact {field_name} {value} is used by {count} records.",
+                        pointer="/artifacts",
+                        blocks=["draft", "internal", "share", "archive"],
+                        fix="Keep one artifact record per package path or remote URL.",
+                    )
+                )
     for index, claim in enumerate(semantic.claims):
         _missing_refs(findings, claim.scene_ids, scene_ids, f"/claims/{index}/scene_ids", "scene")
         _missing_refs(findings, claim.evidence_ids, evidence_ids, f"/claims/{index}/evidence_ids", "evidence")
         _missing_refs(findings, claim.uncertainty_ids, uncertainty_ids, f"/claims/{index}/uncertainty_ids", "uncertainty")
+        claim_source = getattr(claim.claim_text, "source_location", None)
+        if claim_source is not None and claim_source.artifact_id is not None:
+            _missing_refs(
+                findings,
+                [claim_source.artifact_id],
+                artifact_ids,
+                f"/claims/{index}/claim_text/source_location/artifact_id",
+                "source artifact",
+            )
         for evidence_id in claim.evidence_ids:
             evidence = evidence_by_id.get(evidence_id)
             if evidence is not None and claim.id not in evidence.claim_ids:
@@ -541,6 +903,23 @@ def _reference_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
         _missing_refs(findings, scene.render_artifact_ids, artifact_ids, f"/scenes/{index}/render_artifact_ids", "artifact")
         _missing_refs(findings, scene.selection_ids, selection_ids, f"/scenes/{index}/selection_ids", "selection")
         _missing_refs(findings, scene.entity_ids, entity_ids, f"/scenes/{index}/entity_ids", "entity")
+        for visibility_index, visibility in enumerate(scene.visibility):
+            if visibility.entity_id is not None:
+                _missing_refs(
+                    findings,
+                    [visibility.entity_id],
+                    entity_ids,
+                    f"/scenes/{index}/visibility/{visibility_index}/entity_id",
+                    "entity",
+                )
+            if visibility.selection_id is not None:
+                _missing_refs(
+                    findings,
+                    [visibility.selection_id],
+                    selection_ids,
+                    f"/scenes/{index}/visibility/{visibility_index}/selection_id",
+                    "selection",
+                )
     for index, entity in enumerate(semantic.entities):
         _missing_refs(
             findings,
@@ -565,11 +944,28 @@ def _reference_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
                 f"/selections/{index}/source_artifact_id",
                 "artifact",
             )
+        selector_source = getattr(selection.native_selector, "source_location", None)
+        if selector_source is not None and selector_source.artifact_id is not None:
+            _missing_refs(
+                findings,
+                [selector_source.artifact_id],
+                artifact_ids,
+                f"/selections/{index}/native_selector/source_location/artifact_id",
+                "source artifact",
+            )
     for index, evidence in enumerate(semantic.evidence):
         _missing_refs(findings, evidence.claim_ids, claim_ids, f"/evidence/{index}/claim_ids", "claim")
         _missing_refs(findings, evidence.source_artifact_ids, artifact_ids, f"/evidence/{index}/source_artifact_ids", "artifact")
         _missing_refs(findings, evidence.target_entity_ids, entity_ids, f"/evidence/{index}/target_entity_ids", "entity")
         _missing_refs(findings, evidence.target_selection_ids, selection_ids, f"/evidence/{index}/target_selection_ids", "selection")
+        if evidence.provenance_id is not None:
+            _missing_refs(
+                findings,
+                [evidence.provenance_id],
+                activity_ids,
+                f"/evidence/{index}/provenance_id",
+                "provenance activity",
+            )
         for claim_id in evidence.claim_ids:
             claim = claims_by_id.get(claim_id)
             if claim is not None and evidence.id not in claim.evidence_ids:
@@ -656,6 +1052,14 @@ def _reference_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
             f"/raw_native_observations/{index}/artifact_id",
             "artifact",
         )
+        if raw.may_affect_scene_id is not None:
+            _missing_refs(
+                findings,
+                [raw.may_affect_scene_id],
+                scene_ids,
+                f"/raw_native_observations/{index}/may_affect_scene_id",
+                "scene",
+            )
     for index, resource in enumerate(semantic.resource_references):
         if resource.artifact_id is not None:
             _missing_refs(
@@ -665,6 +1069,121 @@ def _reference_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
                 f"/resource_references/{index}/artifact_id",
                 "artifact",
             )
+        if resource.mvsx_member_id is not None:
+            _missing_refs(
+                findings,
+                [resource.mvsx_member_id],
+                member_ids,
+                f"/resource_references/{index}/mvsx_member_id",
+                "MVSX member",
+            )
+    for index, inventory in enumerate(semantic.mvsx_inventories):
+        _missing_refs(
+            findings,
+            [inventory.artifact_id],
+            artifact_ids,
+            f"/mvsx_inventories/{index}/artifact_id",
+            "artifact",
+        )
+        member_counts: dict[str, int] = {}
+        for member in inventory.members:
+            member_counts[member.member_id] = member_counts.get(member.member_id, 0) + 1
+        for member_id, count in sorted(member_counts.items()):
+            if count > 1:
+                findings.append(
+                    finding(
+                        "G3.REFERENCE.DUPLICATE_ID",
+                        "G3_REFERENCE",
+                        "L0_PACKAGE_INTEGRITY",
+                        "ERROR",
+                        "INTEGRITY_ERROR",
+                        f"MVSX member ID {member_id} appears {count} times in one inventory.",
+                        pointer=f"/mvsx_inventories/{index}/members",
+                        blocks=["draft", "internal", "share", "archive"],
+                        fix="Re-import the archive so each member receives a unique ID.",
+                    )
+                )
+    for index, activity in enumerate(semantic.provenance.activities):
+        if activity.agent_id is not None:
+            _missing_refs(
+                findings,
+                [activity.agent_id],
+                agent_ids,
+                f"/provenance/activities/{index}/agent_id",
+                "agent",
+            )
+        _missing_refs(
+            findings,
+            activity.used_artifact_ids,
+            artifact_ids,
+            f"/provenance/activities/{index}/used_artifact_ids",
+            "artifact",
+        )
+        _missing_refs(
+            findings,
+            activity.generated_ids,
+            all_object_ids,
+            f"/provenance/activities/{index}/generated_ids",
+            "generated object",
+        )
+    anchor_ids = all_object_ids
+    for index, waiver in enumerate(semantic.provenance.waivers):
+        if (
+            not _text_is_recorded(waiver.reason)
+            or not _text_is_recorded(waiver.reviewer)
+            or not _is_rfc3339_timestamp(waiver.reviewed_at or waiver.timestamp)
+        ):
+            findings.append(
+                finding(
+                    "G3.WAIVER.REVIEW_INVALID",
+                    "G3_REFERENCE",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    "A waiver needs a concrete reason, reviewer and valid review timestamp.",
+                    pointer=f"/provenance/waivers/{index}",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Record who reviewed the waiver, why it is justified and when it was reviewed.",
+                )
+            )
+        if waiver.anchor_id is not None:
+            _missing_refs(
+                findings,
+                [waiver.anchor_id],
+                anchor_ids,
+                f"/provenance/waivers/{index}/anchor_id",
+                "waiver anchor",
+            )
+        elif waiver.scope not in {"package", "global", "all"}:
+            findings.append(
+                finding(
+                    "G3.WAIVER.SCOPE_INVALID",
+                    "G3_REFERENCE",
+                    "L0_PACKAGE_INTEGRITY",
+                    "ERROR",
+                    "INTEGRITY_ERROR",
+                    "A waiver without anchor_id must explicitly use package, global or all scope.",
+                    pointer=f"/provenance/waivers/{index}",
+                    blocks=["draft", "internal", "share", "archive"],
+                    fix="Add a valid anchor_id, or explicitly set scope to package for a rule-wide waiver.",
+                )
+            )
+    for collection_name, collection in (
+        ("observed_scene_operations", semantic.observed_scene_operations),
+        ("native_references", semantic.native_references),
+        ("raw_native_observations", semantic.raw_native_observations),
+        ("resource_references", semantic.resource_references),
+    ):
+        for index, value in enumerate(collection):
+            source_artifact_id = getattr(value.source_location, "artifact_id", None)
+            if source_artifact_id is not None:
+                _missing_refs(
+                    findings,
+                    [source_artifact_id],
+                    artifact_ids,
+                    f"/{collection_name}/{index}/source_location/artifact_id",
+                    "source artifact",
+                )
     return findings
 
 
@@ -725,6 +1244,27 @@ def _claim_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
                     blocks=["share", "archive"],
                     claim_critical=True,
                     fix="Fill `claim.claim_text` in answers.yml, then apply the answers file.",
+                )
+            )
+        if not (
+            claim.review_status in {ReviewStatus.confirmed, ReviewStatus.human_accepted}
+            and claim.claim_text.review_status
+            in {ReviewStatus.confirmed, ReviewStatus.human_accepted}
+            and _text_is_recorded(claim.claim_text.reviewer)
+            and _is_rfc3339_timestamp(claim.claim_text.reviewed_at)
+        ):
+            findings.append(
+                finding(
+                    "CLAIM.BASIC.AUTHOR_REVIEW",
+                    "G4_CLAIM_RULES",
+                    "L3_CLAIM_EVIDENCE",
+                    "ERROR",
+                    "REVIEWABILITY_ERROR",
+                    f"Claim {claim.id} has not been recorded as an author-reviewed statement.",
+                    pointer=f"{pointer}/claim_text/review_status",
+                    blocks=["share", "archive"],
+                    claim_critical=True,
+                    fix="Apply answers.yml with a reviewer identity, or confirm the claim text and record an RFC 3339 review time.",
                 )
             )
         if not _text_is_recorded(claim.figure_ref):
@@ -862,7 +1402,18 @@ def _claim_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
             )
         if claim.claim_type == ClaimType.simple_structure_view:
             claim_scenes = [scene for scene in semantic.scenes if scene.id in claim.scene_ids]
-            if not any(scene.render_artifact_ids for scene in claim_scenes):
+            attached_render_ids = {
+                artifact.id
+                for artifact in semantic.artifacts
+                if artifact.role == ArtifactRole.render_image
+                and artifact.kind == ArtifactKind.local_attached
+                and artifact.included
+                and is_sha256_digest(artifact.sha256)
+            }
+            if not any(
+                attached_render_ids.intersection(scene.render_artifact_ids)
+                for scene in claim_scenes
+            ):
                 findings.append(
                     finding(
                         "CLAIM.SIMPLE.REQUIRED_RENDER",
@@ -914,7 +1465,20 @@ def _claim_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
                 )
             for selection_id in selection_ids:
                 selection = next((item for item in semantic.selections if item.id == selection_id), None)
-                if selection is not None and not selection.entity_ids:
+                mapped_entities = (
+                    [entity for entity in semantic.entities if entity.id in selection.entity_ids]
+                    if selection is not None
+                    else []
+                )
+                has_reviewed_identity = any(
+                    entity.review_status in {ReviewStatus.confirmed, ReviewStatus.human_accepted}
+                    and (
+                        _text_is_recorded(entity.stable_identity)
+                        or _text_is_recorded(entity.label)
+                    )
+                    for entity in mapped_entities
+                )
+                if selection is not None and not has_reviewed_identity:
                     findings.append(
                         finding(
                             "CLAIM.SELECTION.IDENTITY_MISSING",
@@ -978,7 +1542,7 @@ def _claim_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
                     )
                 )
         if claim.claim_type == ClaimType.trajectory_mechanism:
-            roles = {artifact.role.value for artifact in semantic.artifacts}
+            roles = _package_roles(semantic)
             has_analysis = any(
                 _trajectory_analysis_is_complete(semantic, item, claim.id)
                 for item in semantic.evidence
@@ -1000,8 +1564,9 @@ def _claim_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
                     )
                 )
         if claim.claim_type in {ClaimType.cryo_em_map_fit, ClaimType.xray_density_support}:
-            has_map = any(artifact.role.value == "map" for artifact in semantic.artifacts)
-            has_structure = any(artifact.role.value == "structure" for artifact in semantic.artifacts)
+            package_roles = _package_roles(semantic)
+            has_map = "map" in package_roles
+            has_structure = "structure" in package_roles
             has_density_evidence = any(
                 _density_evidence_is_complete(semantic, item, claim.id)
                 for item in semantic.evidence
@@ -1023,7 +1588,7 @@ def _claim_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
                     )
                 )
         if claim.claim_type == ClaimType.computed_model_claim:
-            has_structure = any(artifact.role.value == "structure" for artifact in semantic.artifacts)
+            has_structure = "structure" in _package_roles(semantic)
             has_validation = any(
                 _computed_model_evidence_is_complete(semantic, item, claim.id)
                 for item in semantic.evidence
@@ -1045,7 +1610,12 @@ def _claim_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
                     )
                 )
         if claim.claim_type == ClaimType.model_comparison:
-            structure_count = sum(1 for artifact in semantic.artifacts if artifact.role.value == "structure")
+            structure_count = len(
+                _structure_digests_for_source_ids(
+                    semantic,
+                    {artifact.id for artifact in semantic.artifacts},
+                )
+            )
             has_comparison_evidence = any(
                 _model_comparison_evidence_is_complete(semantic, item, claim.id)
                 for item in semantic.evidence
@@ -1150,39 +1720,103 @@ def _evidence_source_roles(semantic: SemanticLayer, evidence: Any) -> set[str]:
         for artifact in semantic.artifacts
         if artifact.id in source_ids
     }
-    if any(
-        inventory.artifact_id in source_ids and _inventory_has_structure(inventory)
-        for inventory in semantic.mvsx_inventories
-    ):
-        roles.add("structure")
+    for inventory in semantic.mvsx_inventories:
+        if inventory.artifact_id in source_ids:
+            roles.update(_inventory_roles(semantic, inventory))
     return roles
 
 
 def _has_packaged_structure(semantic: SemanticLayer) -> bool:
-    return any(artifact.role.value == "structure" for artifact in semantic.artifacts) or any(
-        _inventory_has_structure(inventory) for inventory in semantic.mvsx_inventories
-    )
+    return "structure" in _package_roles(semantic)
 
 
-def _inventory_has_structure(inventory: Any) -> bool:
-    structure_suffixes = {".pdb", ".cif", ".mmcif", ".bcif", ".pdbqt", ".mol", ".sdf", ".mol2"}
-    return any(
-        member.referenced
-        and not member.is_dir
-        and Path(member.normalized_name.lower()).suffix in structure_suffixes
-        and bool(member.sha256)
+def _package_roles(semantic: SemanticLayer) -> set[str]:
+    roles = {artifact.role.value for artifact in semantic.artifacts}
+    for inventory in semantic.mvsx_inventories:
+        roles.update(_inventory_roles(semantic, inventory))
+    return roles
+
+
+def _inventory_has_structure(semantic: SemanticLayer, inventory: Any) -> bool:
+    return "structure" in _inventory_roles(semantic, inventory)
+
+
+def _inventory_roles(semantic: SemanticLayer, inventory: Any) -> set[str]:
+    return {
+        role
+        for roles in _inventory_member_roles(semantic, inventory).values()
+        for role in roles
+    }
+
+
+def _inventory_member_roles(semantic: SemanticLayer, inventory: Any) -> dict[str, set[str]]:
+    references = [
+        reference
+        for reference in semantic.native_references
+        if reference.source_location.artifact_id == inventory.artifact_id
+        and reference.source_location.json_pointer
+    ]
+    members_by_id = {
+        member.member_id: member
         for member in inventory.members
-    )
+        if not member.is_dir and is_sha256_digest(member.sha256)
+    }
+    roles_by_member: dict[str, set[str]] = {}
+    trajectory_suffixes = {".xtc", ".dcd", ".trr", ".nc", ".nctraj", ".lammpstrj"}
+    topology_suffixes = {".psf", ".prmtop", ".top"}
+    for resource in semantic.resource_references:
+        if (
+            resource.artifact_id != inventory.artifact_id
+            or resource.mvsx_member_id not in members_by_id
+            or not resource.source_location.json_pointer
+        ):
+            continue
+        pointer_prefix = resource.source_location.json_pointer.rstrip("/") + "/children/"
+        descendant_types = {
+            reference.ref_type
+            for reference in references
+            if str(reference.source_location.json_pointer).startswith(pointer_prefix)
+        }
+        member = members_by_id[resource.mvsx_member_id]
+        suffix = Path(member.normalized_name.lower()).suffix
+        roles = roles_by_member.setdefault(member.member_id, set())
+        if "mvs_structure" in descendant_types:
+            roles.add("structure")
+        if "mvs_volume" in descendant_types:
+            roles.add("map")
+        if suffix in trajectory_suffixes:
+            roles.add("trajectory")
+        if suffix in topology_suffixes:
+            roles.add("topology")
+    return roles_by_member
+
+
+def _structure_digests_for_source_ids(
+    semantic: SemanticLayer,
+    source_ids: set[str],
+) -> set[str]:
+    digests = {
+        str(artifact.sha256).lower()
+        for artifact in semantic.artifacts
+        if artifact.id in source_ids
+        and artifact.role.value == "structure"
+        and is_sha256_digest(artifact.sha256)
+    }
+    for inventory in semantic.mvsx_inventories:
+        if inventory.artifact_id not in source_ids:
+            continue
+        roles_by_member = _inventory_member_roles(semantic, inventory)
+        digests.update(
+            str(member.sha256).lower()
+            for member in inventory.members
+            if "structure" in roles_by_member.get(member.member_id, set())
+            and is_sha256_digest(member.sha256)
+        )
+    return digests
 
 
 def _method_is_recorded(evidence: Any) -> bool:
-    return str(getattr(evidence, "method_name", "")).strip().lower() not in {
-        "",
-        "unknown",
-        "unspecified",
-        "todo",
-        "tbd",
-    }
+    return _text_is_recorded(getattr(evidence, "method_name", ""))
 
 
 def _summary_is_recorded(evidence: Any) -> bool:
@@ -1190,33 +1824,80 @@ def _summary_is_recorded(evidence: Any) -> bool:
 
 
 def _text_is_recorded(value: Any) -> bool:
+    if value is None:
+        return False
     normalized = str(value).strip().lower()
     return (
         bool(normalized)
-        and normalized not in {"unknown", "unspecified", "todo", "tbd"}
+        and normalized
+        not in {
+            "unknown",
+            "unspecified",
+            "todo",
+            "tbd",
+            "none",
+            "null",
+            "n/a",
+            "na",
+            "not applicable",
+            "not_applicable",
+        }
         and not normalized.startswith(("todo", "tbd"))
     )
 
 
 def _evidence_is_author_reviewed(evidence: Any) -> bool:
-    return getattr(evidence, "review_status", None) in {
-        ReviewStatus.confirmed,
-        ReviewStatus.human_accepted,
-    }
+    return (
+        getattr(evidence, "review_status", None)
+        in {ReviewStatus.confirmed, ReviewStatus.human_accepted}
+        and _text_is_recorded(getattr(evidence, "reviewer", ""))
+        and _is_rfc3339_timestamp(getattr(evidence, "reviewed_at", None))
+    )
 
 
 def _uncertainty_is_complete(uncertainty: Any) -> bool:
-    return _text_is_recorded(getattr(uncertainty, "statement", "")) and getattr(
-        uncertainty,
-        "review_status",
-        None,
-    ) in {ReviewStatus.confirmed, ReviewStatus.human_accepted}
+    return (
+        _text_is_recorded(getattr(uncertainty, "statement", ""))
+        and getattr(uncertainty, "review_status", None)
+        in {ReviewStatus.confirmed, ReviewStatus.human_accepted}
+        and _text_is_recorded(getattr(uncertainty, "reviewer", ""))
+        and _is_rfc3339_timestamp(getattr(uncertainty, "reviewed_at", None))
+    )
+
+
+def _is_rfc3339_timestamp(value: Any) -> bool:
+    if not isinstance(value, str) or not value.strip():
+        return False
+    if not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})",
+        value,
+    ):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
+
+
+def _visual_semantics_is_author_reviewed(item: Any) -> bool:
+    if not _text_is_recorded(getattr(item, "reviewer", "")) or not _is_rfc3339_timestamp(
+        getattr(item, "reviewed_at", None)
+    ):
+        return False
+    if item.meaning_status == MeaningStatus.user_confirmed_meaning:
+        return _text_is_recorded(getattr(item, "meaning", ""))
+    if item.meaning_status == MeaningStatus.user_declared_no_scientific_meaning:
+        return _text_is_recorded(getattr(item, "no_scientific_meaning_reason", ""))
+    return False
 
 
 def _valid_distance_context(evidence: Any) -> bool:
     threshold = getattr(evidence, "thresholds", {}).get("distance")
     unit = str(getattr(evidence, "units", {}).get("distance", "")).strip().lower()
     if unit in {"", "unknown", "unspecified"}:
+        return False
+    if isinstance(threshold, bool):
         return False
     try:
         return float(threshold) > 0
@@ -1227,8 +1908,43 @@ def _valid_distance_context(evidence: Any) -> bool:
 def _parameter_names(evidence: Any) -> set[str]:
     return {
         str(key).strip().lower().replace("-", "_").replace(" ", "_")
-        for key in getattr(evidence, "parameters", {})
+        for key, value in getattr(evidence, "parameters", {}).items()
+        if _context_value_is_recorded(value)
     }
+
+
+def _context_value_is_recorded(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return _text_is_recorded(value)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (dict, list, tuple, set)):
+        return bool(value)
+    return True
+
+
+def _density_context_is_recorded(evidence: Any) -> bool:
+    relevant = {
+        "contour",
+        "contour_level",
+        "contour_sigma",
+        "isovalue",
+        "iso_value",
+        "map_threshold",
+        "fit_metric",
+        "map_model_correlation",
+        "correlation_coefficient",
+        "fsc",
+        "resolution",
+    }
+    values = {
+        str(key).strip().lower().replace("-", "_").replace(" ", "_"): value
+        for source in (getattr(evidence, "thresholds", {}), getattr(evidence, "parameters", {}))
+        for key, value in source.items()
+    }
+    return any(name in relevant and _context_value_is_recorded(value) for name, value in values.items())
 
 
 def _trajectory_analysis_is_complete(semantic: SemanticLayer, evidence: Any, claim_id: str) -> bool:
@@ -1249,17 +1965,7 @@ def _trajectory_analysis_is_complete(semantic: SemanticLayer, evidence: Any, cla
             "time_range",
         }
     )
-    has_replicate_context = bool(
-        names
-        & {
-            "replicate",
-            "replicates",
-            "replica",
-            "replicas",
-            "replicate_count",
-            "n_replicates",
-        }
-    )
+    has_replicate_context = _replicate_context_is_recorded(evidence)
     return (
         {"trajectory", "topology"} <= roles
         and _method_is_recorded(evidence)
@@ -1268,6 +1974,27 @@ def _trajectory_analysis_is_complete(semantic: SemanticLayer, evidence: Any, cla
         and has_frame_context
         and has_replicate_context
     )
+
+
+def _replicate_context_is_recorded(evidence: Any) -> bool:
+    parameters = {
+        str(key).strip().lower().replace("-", "_").replace(" ", "_"): value
+        for key, value in getattr(evidence, "parameters", {}).items()
+    }
+    for name in {"replicate", "replicates", "replica", "replicas"}:
+        if name in parameters and _context_value_is_recorded(parameters[name]):
+            return True
+    for name in {"replicate_count", "n_replicates"}:
+        if name not in parameters:
+            continue
+        value = parameters[name]
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(value, bool) and count >= 1 and str(value).strip() == str(count):
+            return True
+    return False
 
 
 def _density_evidence_is_complete(semantic: SemanticLayer, evidence: Any, claim_id: str) -> bool:
@@ -1280,7 +2007,7 @@ def _density_evidence_is_complete(semantic: SemanticLayer, evidence: Any, claim_
     return (
         {"map", "structure"} <= roles
         and _method_is_recorded(evidence)
-        and bool(evidence.thresholds or evidence.parameters)
+        and _density_context_is_recorded(evidence)
         and _summary_is_recorded(evidence)
         and _evidence_is_author_reviewed(evidence)
     )
@@ -1302,14 +2029,12 @@ def _computed_model_evidence_is_complete(semantic: SemanticLayer, evidence: Any,
 def _model_comparison_evidence_is_complete(semantic: SemanticLayer, evidence: Any, claim_id: str) -> bool:
     if claim_id not in evidence.claim_ids or not _method_is_recorded(evidence):
         return False
-    structure_ids = {
-        artifact.id
-        for artifact in semantic.artifacts
-        if artifact.role.value == "structure"
-    }
-    linked_structures = structure_ids & set(evidence.source_artifact_ids)
+    linked_structure_digests = _structure_digests_for_source_ids(
+        semantic,
+        set(evidence.source_artifact_ids),
+    )
     return (
-        len(linked_structures) >= 2
+        len(linked_structure_digests) >= 2
         and _summary_is_recorded(evidence)
         and _evidence_is_author_reviewed(evidence)
     )
@@ -1407,11 +2132,7 @@ def _native_scene_anchor_findings(semantic: SemanticLayer, mode: str) -> list[Va
     answered_ops = {
         operation_id
         for item in semantic.visual_encoding_semantics
-        if item.meaning_status
-        in {
-            MeaningStatus.user_confirmed_meaning,
-            MeaningStatus.user_declared_no_scientific_meaning,
-        }
+        if _visual_semantics_is_author_reviewed(item)
         for operation_id in item.operation_ids
     }
     for index, operation in enumerate(semantic.observed_scene_operations):
@@ -1450,8 +2171,7 @@ def _native_scene_anchor_findings(semantic: SemanticLayer, mode: str) -> list[Va
         if (
             resource.claim_critical in {ClaimCriticalStatus.true, ClaimCriticalStatus.unknown}
             and resource.uri_kind in {"remote", "file", "unknown", "relative", "missing_archive_member"}
-            and resource.fixity_status != "available"
-            and not resource_matches_artifact(semantic, resource.uri, resource_ref=resource)
+            and not _resource_has_verifiable_fixity(semantic, resource)
         ):
             missing_archive_member = resource.uri_kind == "missing_archive_member"
             display_uri = resource_uri_summary(resource.uri)
@@ -1485,6 +2205,48 @@ def _native_scene_anchor_findings(semantic: SemanticLayer, mode: str) -> list[Va
                 )
             )
     return findings
+
+
+def _resource_has_verifiable_fixity(semantic: SemanticLayer, resource: Any) -> bool:
+    if resource.uri_kind == "data":
+        return True
+    if resource.uri_kind in {"relative", "local"}:
+        return any(
+            artifact.kind in {ArtifactKind.local_attached, ArtifactKind.local_detached}
+            and is_sha256_digest(artifact.sha256)
+            and getattr(artifact.role, "value", artifact.role) != "directory"
+            and artifact.format != "inode/directory"
+            and (
+                artifact.kind == ArtifactKind.local_attached
+                and artifact.included
+                or artifact.kind == ArtifactKind.local_detached
+                and not artifact.included
+            )
+            for artifact in resource_matching_artifacts(
+                semantic,
+                resource.uri,
+                resource_ref=resource,
+            )
+        )
+    if resource.uri_kind == "archive_member" and resource.mvsx_member_id:
+        return any(
+            inventory.artifact_id == resource.artifact_id
+            and any(
+                member.member_id == resource.mvsx_member_id
+                and not member.is_dir
+                and is_sha256_digest(member.sha256)
+                for member in inventory.members
+            )
+            for inventory in semantic.mvsx_inventories
+        )
+    if resource.uri_kind == "remote":
+        return any(
+            artifact.kind == ArtifactKind.remote
+            and artifact.url == resource.uri
+            and is_sha256_digest(artifact.sha256)
+            for artifact in semantic.artifacts
+        )
+    return False
 
 
 def _operation_likely_ligand_claim_central(semantic: SemanticLayer, operation: Any) -> bool:
@@ -1539,13 +2301,16 @@ def _privacy_findings(root: Path, semantic: SemanticLayer, mode: str) -> list[Va
                 break
     for file_path in safe_walk(root):
         relative = file_path.relative_to(root.resolve()).as_posix()
-        if relative == SEMANTIC_LAYER_FILENAME or file_path.suffix.lower() not in TEXT_PRIVACY_SUFFIXES:
+        if relative == SEMANTIC_LAYER_FILENAME:
             continue
         try:
             if not file_path.is_file() or file_path.stat().st_size > MAX_PRIVACY_SCAN_BYTES:
                 continue
-            text = file_path.read_text(encoding="utf-8", errors="replace")
-        except Exception:
+            payload = file_path.read_bytes()
+            if b"\x00" in payload:
+                continue
+            text = payload.decode("utf-8")
+        except (OSError, UnicodeDecodeError):
             continue
         if any(pattern.search(text) for pattern in SECRET_PATTERNS):
             findings.append(
@@ -1578,11 +2343,46 @@ def _walk_json(value: Any, pointer: str = ""):
 
 def _apply_waivers(findings: list[ValidationFinding], semantic: SemanticLayer, mode: str) -> None:
     for item in findings:
+        finding_anchor = _finding_anchor_id(item, semantic)
         for index, waiver in enumerate(semantic.provenance.waivers):
+            if (
+                not _text_is_recorded(waiver.reason)
+                or not _text_is_recorded(waiver.reviewer)
+                or not _is_rfc3339_timestamp(waiver.reviewed_at or waiver.timestamp)
+            ):
+                continue
+            if waiver.anchor_id is not None and waiver.anchor_id != finding_anchor:
+                continue
+            if waiver.anchor_id is None and waiver.scope not in {"package", "global", "all"}:
+                continue
             if waiver.rule_id == item.rule_id and item.waivable and waiver_covers(waiver.max_export_mode, mode):
                 item.status = "WAIVED"
                 item.waiver_id = f"waiver:{index}"
                 break
+
+
+def _finding_anchor_id(item: ValidationFinding, semantic: SemanticLayer) -> str | None:
+    parts = item.json_pointer.strip("/").split("/")
+    if len(parts) < 2:
+        return None
+    collection_name, index_text = parts[:2]
+    try:
+        collection = getattr(semantic, collection_name)
+        anchored = collection[int(index_text)]
+    except (AttributeError, IndexError, TypeError, ValueError):
+        return None
+    for attribute in (
+        "id",
+        "raw_id",
+        "operation_id",
+        "native_ref_id",
+        "resource_ref_id",
+        "binding_id",
+    ):
+        value = getattr(anchored, attribute, None)
+        if value:
+            return str(value)
+    return None
 
 
 def _report(
@@ -1627,7 +2427,7 @@ def _report(
             "Distance commands are measurement intent and are not automatically classified as hydrogen bonds or contacts.",
             "Selection names such as active_site remain native labels until confirmed by the author.",
             "A color ramp over atom field b does not identify whether the values are crystallographic B-factors, pLDDT or custom values.",
-            "Automatic privacy scanning covers package metadata and known text attachments up to 2 MiB; binary and larger files still need manual review.",
+            "Automatic privacy scanning covers package metadata and UTF-8 text attachments up to 2 MiB; binary and larger files still need manual review.",
         ],
         evidence_minimums_by_profile=_evidence_minimums(),
         human_review_required=_human_review_required(semantic),
@@ -1718,9 +2518,27 @@ def _artifact_fixity(root: Path, semantic: SemanticLayer | None) -> list[dict[st
             try:
                 path = resolve_package_path(root, artifact.path)
                 exists = path.exists()
-                actual_sha = sha256_file(path) if path.is_file() else None
+                actual_sha = (
+                    sha256_directory(path)
+                    if path.is_dir()
+                    else sha256_file(path)
+                    if path.is_file()
+                    else None
+                )
             except Exception:
                 exists = False
+        if artifact.kind == ArtifactKind.local_attached:
+            status = (
+                "pass"
+                if exists
+                and is_sha256_digest(artifact.sha256)
+                and actual_sha == artifact.sha256
+                else "fail"
+            )
+        elif is_sha256_digest(artifact.sha256):
+            status = "expected_only"
+        else:
+            status = "unavailable"
         rows.append(
             {
                 "artifact_id": artifact.id,
@@ -1731,7 +2549,7 @@ def _artifact_fixity(root: Path, semantic: SemanticLayer | None) -> list[dict[st
                 "exists": exists,
                 "expected_sha256": artifact.sha256,
                 "actual_sha256": actual_sha,
-                "status": "pass" if actual_sha == artifact.sha256 or artifact.kind != ArtifactKind.local_attached else "fail",
+                "status": status,
             }
         )
     return rows

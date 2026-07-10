@@ -39,7 +39,7 @@ evidence:
 scene:
   color_meanings: {}
   label_meanings: {}
-  notes: Displayed, hidden, colored and labeled objects are auto-extracted from native artifacts. Confirm ligand/pocket visual meanings that support the figure message.
+  notes: ''
 uncertainty:
   category: alternative_pose
   statement: "TODO: state whether alternative poses, waters/cofactors or other limits were assessed"

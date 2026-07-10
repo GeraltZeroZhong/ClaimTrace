@@ -10,12 +10,33 @@ from claimtrace.importers.experimental.molviewspec import _read_mvs
 from claimtrace.models import SemanticLayer
 from claimtrace.package.paths import ensure_relative_path
 from claimtrace.package.registry import register_local_artifact
+from claimtrace.package.resources import resource_uri_summary
 from claimtrace.validation.engine import validate_package
 
 
 def test_absolute_path_rejected():
     with pytest.raises(SecurityError):
         ensure_relative_path("/tmp/secret")
+
+
+@pytest.mark.parametrize(
+    "unsafe_path",
+    [
+        "CON.txt",
+        "data/trailing.",
+        "data/trailing ",
+        "data/file.txt:stream",
+        "data/half\ud800name.txt",
+        "",
+        ".",
+        "data//model.cif",
+        "data/./model.cif",
+        "data/../model.cif",
+    ],
+)
+def test_nonportable_package_paths_are_rejected(unsafe_path: str):
+    with pytest.raises(SecurityError):
+        ensure_relative_path(unsafe_path)
 
 
 def test_mvsx_zip_slip_rejected(tmp_path: Path):
@@ -152,3 +173,47 @@ def test_archive_privacy_scan_checks_unregistered_package_text(tmp_path: Path):
         item.rule_id == "SECURITY.PATH.PRIVACY" and "answers.yml" in item.message
         for item in report.findings
     )
+
+
+def test_archive_privacy_scan_checks_utf8_text_without_known_suffix(tmp_path: Path):
+    package = init_package(blank=True, out=tmp_path / "pkg")
+    (package.root / "evidence" / "notes.custom").write_text(
+        "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456\n",
+        encoding="utf-8",
+    )
+
+    report = validate_package(package.root, mode="archive")
+
+    assert any(
+        item.rule_id == "SECURITY.PATH.PRIVACY" and "notes.custom" in item.message
+        for item in report.findings
+    )
+
+
+def test_credentialed_http_resource_is_blocked_and_redacted(tmp_path: Path):
+    scene = tmp_path / "scene.mvsj"
+    scene.write_text(
+        '{"metadata":{"version":"1"},"root":{"kind":"root","children":['
+        '{"kind":"download","params":{"url":"https://reader:private-password@example.org/model.cif?token=value"}}]}}',
+        encoding="utf-8",
+    )
+    package = init_package(native=scene, out=tmp_path / "pkg")
+
+    report = validate_package(package.root, mode="archive")
+    summary = resource_uri_summary(
+        "https://reader:private-password@example.org/model.cif?token=value"
+    )
+
+    assert any(item.rule_id == "SECURITY.PATH.PRIVACY" for item in report.findings)
+    assert "reader" not in summary
+    assert "private-password" not in summary
+    assert "token=value" not in summary
+    assert "credentials redacted" in summary
+
+
+def test_malformed_remote_uri_summary_does_not_leak_or_crash():
+    summary = resource_uri_summary("https://reader:private-password@[invalid/model.cif")
+
+    assert summary.startswith("malformed remote URL")
+    assert "reader" not in summary
+    assert "private-password" not in summary

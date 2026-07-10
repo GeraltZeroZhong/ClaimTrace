@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 import zipfile
 from pathlib import Path
 
@@ -91,7 +92,10 @@ def test_mvsx_import_builds_inventory_and_links_archive_member(tmp_path: Path):
     assert semantic.resource_references[0].mvsx_member_id == model_member.member_id
 
 
-@pytest.mark.parametrize("bad_name", ["../evil.txt", "C:/secret.txt", r"nested\\evil.txt"])
+@pytest.mark.parametrize(
+    "bad_name",
+    ["../evil.txt", "C:/secret.txt", r"nested\\evil.txt", "nested//evil.txt", "nested/./evil.txt"],
+)
 def test_mvsx_rejects_unsafe_member_names(tmp_path: Path, bad_name: str):
     archive = tmp_path / "bad.mvsx"
     with zipfile.ZipFile(archive, "w") as zf:
@@ -235,3 +239,194 @@ def test_mvs_measurement_primitives_are_intent_not_generic_overlay(tmp_path: Pat
         "measurement_intent",
         "measurement_intent",
     ]
+
+
+def test_mvs_required_clip_uri_format_and_measurement_endpoints_stay_raw(tmp_path: Path):
+    scene = tmp_path / "invalid-required-params.mvsj"
+    scene.write_text(
+        json.dumps(
+            {
+                "metadata": {"version": "1"},
+                "root": {
+                    "kind": "root",
+                    "children": [
+                        {"kind": "clip", "params": {}},
+                        {"kind": "primitives_from_uri", "params": {"uri": "marks.json"}},
+                        {
+                            "kind": "primitives",
+                            "children": [
+                                {
+                                    "kind": "primitive",
+                                    "params": {"kind": "distance_measurement", "start": [0, 0, 0]},
+                                },
+                                {
+                                    "kind": "primitive",
+                                    "params": {
+                                        "kind": "angle_measurement",
+                                        "a": [0, 0, 0],
+                                        "b": [1, 0, 0],
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    semantic = SemanticLayer.new("pkg-test")
+
+    result = MolViewSpecImporter().import_into(scene, "artifact:mvsj", semantic)
+
+    raw_facts = [fact for fact in result.facts if fact.support_status == "raw_unsupported"]
+    assert [fact.support_status for fact in raw_facts] == [
+        "raw_unsupported",
+        "raw_unsupported",
+        "raw_unsupported",
+        "raw_unsupported",
+    ]
+    assert {item.reason for item in semantic.raw_native_observations} == {
+        "missing_required_mvs_params:type",
+        "missing_required_mvs_params:format",
+        "missing_required_mvs_params:end",
+        "missing_required_mvs_params:c",
+    }
+    assert not semantic.observed_scene_operations
+
+
+def test_mvs_current_official_parse_and_representation_enums_are_accepted(tmp_path: Path):
+    parse_formats = {
+        "mmcif",
+        "bcif",
+        "pdb",
+        "pdbqt",
+        "gro",
+        "xyz",
+        "mol",
+        "sdf",
+        "mol2",
+        "lammpstrj",
+        "xtc",
+        "nctraj",
+        "dcd",
+        "trr",
+        "psf",
+        "prmtop",
+        "top",
+        "map",
+        "dx",
+        "dxbin",
+    }
+    representation_types = {
+        "cartoon",
+        "backbone",
+        "ball_and_stick",
+        "line",
+        "spacefill",
+        "carbohydrate",
+        "surface",
+        "putty",
+    }
+    for value in parse_formats:
+        data = deepcopy(_basic_mvs_tree())
+        data["root"]["children"][0]["children"][0]["params"]["format"] = value
+        scene = tmp_path / f"parse-{value}.mvsj"
+        scene.write_text(json.dumps(data), encoding="utf-8")
+        semantic = SemanticLayer.new(f"pkg-parse-{value}")
+        MolViewSpecImporter().import_into(scene, "artifact:mvsj", semantic)
+        assert not semantic.raw_native_observations, value
+
+    for value in representation_types:
+        data = deepcopy(_basic_mvs_tree())
+        representation = data["root"]["children"][0]["children"][0]["children"][0]["children"][0]["children"][0]
+        representation["params"]["type"] = value
+        scene = tmp_path / f"representation-{value}.mvsj"
+        scene.write_text(json.dumps(data), encoding="utf-8")
+        semantic = SemanticLayer.new(f"pkg-representation-{value}")
+        MolViewSpecImporter().import_into(scene, "artifact:mvsj", semantic)
+        assert not semantic.raw_native_observations, value
+        assert any(operation.operation == "represented" for operation in semantic.observed_scene_operations)
+
+
+def test_mvs_volume_enums_camera_shapes_and_invalid_enums_are_checked(tmp_path: Path):
+    valid_tree = {
+        "metadata": {"version": "1"},
+        "root": {
+            "kind": "root",
+            "children": [
+                {
+                    "kind": "download",
+                    "params": {"url": "map.dx"},
+                    "children": [
+                        {
+                            "kind": "parse",
+                            "params": {"format": "dx"},
+                            "children": [
+                                {
+                                    "kind": "volume",
+                                    "children": [
+                                        {
+                                            "kind": "volume_representation",
+                                            "params": {"type": "grid_slice", "dimension": "z"},
+                                        },
+                                        {
+                                            "kind": "volume_representation",
+                                            "params": {"type": "isosurface"},
+                                        },
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "kind": "camera",
+                    "params": {"target": [0, 0, 0], "position": [0, 0, 20]},
+                },
+            ],
+        },
+    }
+    valid = tmp_path / "valid-volume.mvsj"
+    valid.write_text(json.dumps(valid_tree), encoding="utf-8")
+    semantic = SemanticLayer.new("pkg-valid-volume")
+    MolViewSpecImporter().import_into(valid, "artifact:mvsj", semantic)
+    assert not semantic.raw_native_observations
+    assert [operation.operation for operation in semantic.observed_scene_operations].count(
+        "volume_displayed"
+    ) == 2
+    assert "molviewspec" in semantic.scenes[0].camera
+
+    invalid_tree = deepcopy(valid_tree)
+    invalid_tree["root"]["children"].pop(1)
+    invalid_tree["root"]["children"].extend(
+        [
+            {"kind": "camera", "params": {"target": [0, 0], "position": ["x", 0, 1]}},
+            {
+                "kind": "primitives",
+                "children": [{"kind": "primitive", "params": {"kind": "hydrogen_bond"}}],
+            },
+        ]
+    )
+    invalid_tree["root"]["children"][0]["children"][0]["params"]["format"] = "nonsense"
+    invalid = tmp_path / "invalid-enums.mvsj"
+    invalid.write_text(json.dumps(invalid_tree), encoding="utf-8")
+    semantic = SemanticLayer.new("pkg-invalid-enums")
+    MolViewSpecImporter().import_into(invalid, "artifact:mvsj", semantic)
+    reasons = {item.reason for item in semantic.raw_native_observations}
+    assert "invalid_mvs_param:format" in reasons
+    assert "invalid_mvs_param:target,position" in reasons
+    assert "invalid_mvs_param:kind" in reasons
+    assert "molviewspec" not in semantic.scenes[0].camera
+
+
+@pytest.mark.parametrize("token", ["NaN", "Infinity", "-Infinity", "1e999", "-1e999"])
+def test_mvsj_rejects_non_finite_json_numbers(tmp_path: Path, token: str):
+    scene = tmp_path / "nonfinite.mvsj"
+    scene.write_text(
+        f'{{"metadata":{{"version":"1"}},"root":{{"kind":"root","children":[]}},"bad":{token}}}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="[Nn]on-finite"):
+        read_mvs(scene, "artifact:mvsj")

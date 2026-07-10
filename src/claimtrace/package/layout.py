@@ -9,6 +9,7 @@ import stat
 from pathlib import Path
 from uuid import uuid4
 
+from claimtrace._finite import ensure_finite
 from claimtrace.constants import (
     COMPLETION_TASKS_PATH,
     EXTRACTION_REPORT_PATH,
@@ -59,36 +60,51 @@ def create_package_root(
     return semantic
 
 
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-finite numeric constant {value} is not valid JSON")
+
+
 def load_semantic_layer(root: Path) -> SemanticLayer:
     path = root / SEMANTIC_LAYER_FILENAME
     if not path.exists():
         raise PackageError(f"Missing {SEMANTIC_LAYER_FILENAME} in {root}")
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = ensure_finite(
+        json.loads(path.read_text(encoding="utf-8"), parse_constant=_reject_json_constant)
+    )
     if str(data.get("schema_version")) != "0.1.0":
         raise SchemaVersionError(f"Unsupported CAL schema version: {data.get('schema_version')}")
     return SemanticLayer.model_validate(data)
 
 
 def write_semantic_layer(root: Path, semantic: SemanticLayer) -> None:
+    ensure_finite(semantic.model_dump(mode="python", exclude_none=True))
     write_json(root / SEMANTIC_LAYER_FILENAME, semantic.model_dump(mode="json", exclude_none=True))
 
 
 def read_json(path: Path) -> dict:
     if not path.exists():
         return {}
-    return json.loads(path.read_text(encoding="utf-8"))
+    return ensure_finite(
+        json.loads(path.read_text(encoding="utf-8"), parse_constant=_reject_json_constant)
+    )
 
 
 def write_json(path: Path, data: object) -> None:
+    ensure_finite(data)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(data, indent=2, sort_keys=False, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
 
 
 def read_completion_tasks(root: Path) -> list[CompletionTask]:
     path = root / COMPLETION_TASKS_PATH
     if not path.exists():
         return []
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = ensure_finite(
+        json.loads(path.read_text(encoding="utf-8"), parse_constant=_reject_json_constant)
+    )
     tasks = data.get("tasks", data if isinstance(data, list) else [])
     return [CompletionTask.model_validate(item) for item in tasks]
 
@@ -191,13 +207,23 @@ def _special_file_kind(mode: int) -> str:
 
 
 def _validate_force_replace_root(root: Path) -> None:
+    if root.is_symlink():
+        raise PackageError(f"Refusing to replace a symbolic-link output with --force: {root}")
     resolved = root.resolve()
     cwd = Path.cwd().resolve()
     home = Path.home().resolve()
     if resolved in {Path("/").resolve(), home, cwd} or cwd.is_relative_to(resolved):
         raise PackageError(f"Refusing to replace this directory with --force: {root}")
-    if not (root / SEMANTIC_LAYER_FILENAME).exists():
+    semantic_path = root / SEMANTIC_LAYER_FILENAME
+    if not semantic_path.is_file() or semantic_path.is_symlink():
         raise PackageError(
             f"Refusing to replace non-ClaimTrace directory with --force: {root}. "
             "Choose a new --out path or remove the directory yourself."
         )
+    try:
+        load_semantic_layer(root)
+    except Exception as exc:
+        raise PackageError(
+            f"Refusing to replace a directory whose {SEMANTIC_LAYER_FILENAME} is not a valid "
+            f"ClaimTrace manifest: {root}."
+        ) from exc

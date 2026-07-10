@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import mimetypes
 import posixpath
 import re
 import stat
+import unicodedata
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from claimtrace._finite import ensure_finite
 from claimtrace.errors import SecurityError
 from claimtrace.importers.base import ExtractedFact, ImportResult
 from claimtrace.models import (
@@ -35,6 +38,7 @@ from claimtrace.models.semantic_layer import (
     SupportStatus,
     TargetResolutionStatus,
 )
+from claimtrace.package.paths import ensure_relative_path
 from claimtrace.visual_semantics import suggest_visual_encoding
 
 
@@ -170,17 +174,114 @@ REQUIRED_PARAMS: dict[str, tuple[str, ...]] = {
     "download": ("url",),
     "parse": ("format",),
     "structure": ("type",),
+    "component": ("selector",),
     "representation": ("type",),
+    "volume_representation": ("type",),
     "camera": ("target", "position"),
-    "color": ("color",),
+    "clip": ("type",),
     "label": ("text",),
+    "tooltip": ("text",),
     "opacity": ("opacity",),
-    "component_from_uri": ("uri",),
-    "color_from_uri": ("uri",),
-    "label_from_uri": ("uri",),
-    "tooltip_from_uri": ("uri",),
-    "primitives_from_uri": ("uri",),
+    "component_from_uri": ("uri", "format", "schema"),
+    "component_from_source": ("schema",),
+    "color_from_uri": ("uri", "format", "schema"),
+    "color_from_source": ("schema",),
+    "label_from_uri": ("uri", "format", "schema"),
+    "label_from_source": ("schema",),
+    "tooltip_from_uri": ("uri", "format", "schema"),
+    "tooltip_from_source": ("schema",),
+    "primitives_from_uri": ("uri", "format"),
     "primitive": ("kind",),
+}
+
+ALLOWED_PARAM_VALUES: dict[str, dict[str, set[str]]] = {
+    "parse": {
+        "format": {
+            "mmcif",
+            "bcif",
+            "pdb",
+            "pdbqt",
+            "gro",
+            "xyz",
+            "mol",
+            "sdf",
+            "mol2",
+            "lammpstrj",
+            "xtc",
+            "nctraj",
+            "dcd",
+            "trr",
+            "psf",
+            "prmtop",
+            "top",
+            "map",
+            "dx",
+            "dxbin",
+        }
+    },
+    "structure": {"type": {"model", "assembly", "symmetry", "symmetry_mates"}},
+    "representation": {
+        "type": {
+            "ball_and_stick",
+            "cartoon",
+            "backbone",
+            "line",
+            "spacefill",
+            "carbohydrate",
+            "surface",
+            "putty",
+        }
+    },
+    "volume_representation": {"type": {"isosurface", "grid_slice"}},
+    "primitive": {
+        "kind": {
+            "angle_measurement",
+            "arrow",
+            "box",
+            "distance_measurement",
+            "ellipse",
+            "ellipsoid",
+            "label",
+            "lines",
+            "mesh",
+            "tube",
+        }
+    },
+}
+
+ANNOTATION_FORMATS = {"cif", "bcif", "json"}
+ANNOTATION_SCHEMAS = {
+    "whole_structure",
+    "entity",
+    "chain",
+    "auth_chain",
+    "residue",
+    "auth_residue",
+    "residue_range",
+    "auth_residue_range",
+    "atom",
+    "auth_atom",
+    "all_atomic",
+}
+for _kind in {"component_from_uri", "color_from_uri", "label_from_uri", "tooltip_from_uri"}:
+    ALLOWED_PARAM_VALUES[_kind] = {
+        "format": ANNOTATION_FORMATS,
+        "schema": ANNOTATION_SCHEMAS,
+    }
+for _kind in {"component_from_source", "color_from_source", "label_from_source", "tooltip_from_source"}:
+    ALLOWED_PARAM_VALUES[_kind] = {"schema": ANNOTATION_SCHEMAS}
+
+PRIMITIVE_REQUIRED_PARAMS: dict[str, tuple[str, ...]] = {
+    "mesh": ("vertices", "indices"),
+    "lines": ("vertices", "indices"),
+    "tube": ("start", "end"),
+    "arrow": ("start",),
+    "distance_measurement": ("start", "end"),
+    "angle_measurement": ("a", "b", "c"),
+    "label": ("position", "text"),
+    "ellipse": ("center",),
+    "ellipsoid": ("center",),
+    "box": ("center",),
 }
 
 # A deliberately small, high-confidence subset of the official v1 parent rules.
@@ -192,15 +293,30 @@ PARENT_KINDS: dict[str, set[str | None]] = {
     "parse": {"download"},
     "coordinates": {"parse"},
     "structure": {"parse"},
+    "transform": {"structure", "component", "volume"},
+    "instance": {"structure", "component", "volume"},
     "component": {"structure"},
     "component_from_uri": {"structure"},
     "component_from_source": {"structure"},
     "representation": {"component", "component_from_uri", "component_from_source"},
+    "volume": {"parse"},
+    "volume_representation": {"volume"},
     "color": {"representation", "volume_representation"},
-    "color_from_uri": {"representation", "volume_representation"},
-    "color_from_source": {"representation", "volume_representation"},
+    "color_from_uri": {"representation"},
+    "color_from_source": {"representation"},
+    "clip": {"representation", "volume_representation", "primitives", "primitives_from_uri"},
+    "opacity": {"representation", "volume_representation"},
+    "label": {"component", "component_from_uri", "component_from_source"},
+    "label_from_uri": {"structure"},
+    "label_from_source": {"structure"},
+    "tooltip": {"component", "component_from_uri", "component_from_source"},
+    "tooltip_from_uri": {"structure"},
+    "tooltip_from_source": {"structure"},
+    "focus": {"root", "component", "component_from_uri", "component_from_source", "primitives", "primitives_from_uri", "volume", "volume_representation"},
     "camera": {"root"},
     "canvas": {"root"},
+    "primitives": {"structure", "root"},
+    "primitives_from_uri": {"structure", "root"},
     "primitive": {"primitives"},
 }
 
@@ -336,13 +452,23 @@ class MolViewSpecImporter:
 def read_mvs(path: Path, artifact_id: str) -> MVSReadResult:
     if path.suffix.lower() == ".mvsj":
         try:
-            return MVSReadResult(data=json.loads(path.read_text(encoding="utf-8-sig")))
+            return MVSReadResult(
+                data=ensure_finite(
+                    json.loads(
+                        path.read_text(encoding="utf-8-sig"),
+                        parse_constant=_reject_json_constant,
+                    ),
+                    "molviewspec",
+                )
+            )
         except json.JSONDecodeError as exc:
             raise ValueError(
                 f"Invalid MolViewSpec JSON {path} at line {exc.lineno}, column {exc.colno}: {exc.msg}."
             ) from exc
         except UnicodeDecodeError as exc:
             raise ValueError(f"MolViewSpec JSON must be UTF-8 text: {path} ({exc}).") from exc
+        except ValueError as exc:
+            raise ValueError(f"Invalid MolViewSpec JSON {path}: {exc}.") from exc
     try:
         return _read_mvsx(path, artifact_id)
     except zipfile.BadZipFile as exc:
@@ -354,6 +480,7 @@ def _read_mvsx(path: Path, artifact_id: str) -> MVSReadResult:
     member_bytes: dict[str, bytes] = {}
     scene_payload: bytes | None = None
     normalized_seen: set[str] = set()
+    portable_seen: dict[str, str] = {}
     dirs: set[str] = set()
     files: set[str] = set()
     total_size = 0
@@ -394,6 +521,13 @@ def _read_mvsx(path: Path, artifact_id: str) -> MVSReadResult:
             if normalized in normalized_seen:
                 raise SecurityError(f"MVSX archive has duplicate normalized member path: {normalized}")
             normalized_seen.add(normalized)
+            portable = unicodedata.normalize("NFC", normalized).casefold()
+            previous = portable_seen.get(portable)
+            if previous is not None and previous != normalized:
+                raise SecurityError(
+                    f"MVSX members collide on case-insensitive filesystems: {previous} and {normalized}"
+                )
+            portable_seen[portable] = normalized
             is_dir = info.is_dir()
             if _is_symlink(info):
                 raise SecurityError(f"MVSX archive member is a symlink: {info.filename}")
@@ -440,8 +574,14 @@ def _read_mvsx(path: Path, artifact_id: str) -> MVSReadResult:
     if not scene_payload:
         raise SecurityError(f"MVSX scene entry is empty: {scene_entry}")
     try:
-        data = json.loads(scene_payload.decode("utf-8-sig"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        data = ensure_finite(
+            json.loads(
+                scene_payload.decode("utf-8-sig"),
+                parse_constant=_reject_json_constant,
+            ),
+            "molviewspec",
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise SecurityError(f"MVSX scene entry {scene_entry} is not valid UTF-8 JSON: {exc}") from exc
     inventory = MVSXInventory(
         artifact_id=artifact_id,
@@ -717,15 +857,97 @@ def _shallow_schema_issue(kind: str, item: WalkItem) -> str | None:
     missing = [
         key
         for key in REQUIRED_PARAMS.get(kind, ())
-        if params.get(key, item.node.get(key)) is None
+        if not _mvs_param_is_present(params.get(key, item.node.get(key)))
     ]
     if missing:
         return "missing_required_mvs_params:" + ",".join(missing)
+    for key, allowed in ALLOWED_PARAM_VALUES.get(kind, {}).items():
+        value = params.get(key, item.node.get(key))
+        if value not in allowed:
+            return f"invalid_mvs_param:{key}"
+    if kind == "camera":
+        invalid = [key for key in ("target", "position") if not _numeric_vector(params.get(key), 3)]
+        if params.get("up") is not None and not _numeric_vector(params.get("up"), 3):
+            invalid.append("up")
+        if invalid:
+            return "invalid_mvs_param:" + ",".join(invalid)
+    if kind == "volume_representation" and params.get("type") == "grid_slice":
+        if params.get("dimension") not in {"x", "y", "z"}:
+            return "invalid_mvs_param:dimension"
+    if kind == "primitive":
+        primitive_kind = str(params.get("kind") or item.node.get("kind") or "")
+        missing_primitive = [
+            key
+            for key in PRIMITIVE_REQUIRED_PARAMS.get(primitive_kind, ())
+            if not _mvs_param_is_present(params.get(key))
+        ]
+        if missing_primitive:
+            return "missing_required_mvs_params:" + ",".join(missing_primitive)
+        point_params = {
+            "tube": ("start", "end"),
+            "arrow": ("start",),
+            "distance_measurement": ("start", "end"),
+            "angle_measurement": ("a", "b", "c"),
+            "label": ("position",),
+            "ellipse": ("center",),
+            "ellipsoid": ("center",),
+            "box": ("center",),
+        }
+        invalid_points = [
+            key
+            for key in point_params.get(primitive_kind, ())
+            if not _valid_mvs_endpoint(params.get(key))
+        ]
+        if invalid_points:
+            return "invalid_mvs_param:" + ",".join(invalid_points)
+    if kind == "primitives_from_uri" and params.get("format") != "mvs-node-json":
+        return "invalid_mvs_param:format"
+    if kind == "clip":
+        clip_type = params.get("type")
+        if clip_type not in {"plane", "sphere", "box"}:
+            return "invalid_mvs_param:type"
+        required_by_type = {
+            "plane": ("normal", "point"),
+            "sphere": ("center",),
+            "box": ("center",),
+        }
+        invalid = [
+            key for key in required_by_type[clip_type] if not _numeric_vector(params.get(key), 3)
+        ]
+        if invalid:
+            return "invalid_mvs_param:" + ",".join(invalid)
     allowed_parents = PARENT_KINDS.get(kind)
     if allowed_parents is not None and item.parent_kind not in allowed_parents:
         parent = item.parent_kind or "document_root"
         return f"invalid_mvs_parent:{kind}_under_{parent}"
     return None
+
+
+def _mvs_param_is_present(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, dict)):
+        return bool(value)
+    return True
+
+
+def _numeric_vector(value: Any, length: int) -> bool:
+    return (
+        isinstance(value, list)
+        and len(value) == length
+        and all(
+            isinstance(item, (int, float))
+            and not isinstance(item, bool)
+            and math.isfinite(float(item))
+            for item in value
+        )
+    )
+
+
+def _valid_mvs_endpoint(value: Any) -> bool:
+    return _numeric_vector(value, 3) or isinstance(value, dict) and bool(value)
 
 
 def _operation_for_mvs_item(kind: str, node: dict[str, Any]) -> str:
@@ -991,11 +1213,17 @@ def _normalize_member_name(name: str) -> str:
     if name.startswith("/") or name.startswith("//") or re.match(r"^[A-Za-z]:", name):
         raise SecurityError(f"MVSX archive member path is absolute or drive-qualified: {name}")
     normalized = posixpath.normpath(name)
+    if normalized != name.rstrip("/"):
+        raise SecurityError(f"MVSX archive member path is not canonical: {name}")
     if normalized in {"", "."}:
         raise SecurityError(f"MVSX archive member path is empty after normalization: {name}")
     if normalized.startswith("../") or normalized == ".." or "/../" in f"/{normalized}/":
         raise SecurityError(f"MVSX archive member path escapes archive root: {name}")
-    return normalized
+    return ensure_relative_path(normalized.rstrip("/")) + ("/" if normalized.endswith("/") else "")
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-finite numeric constant {value} is not valid JSON")
 
 
 def _check_collisions(normalized: str, is_dir: bool, dirs: set[str], files: set[str]) -> None:

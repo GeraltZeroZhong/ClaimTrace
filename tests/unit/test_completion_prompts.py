@@ -74,6 +74,38 @@ def test_noncritical_visual_item_can_keep_unresolved_meaning_status(tmp_path: Pa
     assert not any("meaning_status" in problem for problem in problems)
 
 
+def test_answer_waiver_can_anchor_to_claim_created_by_same_answers(tmp_path: Path):
+    script = tmp_path / "scene.cxc"
+    script.write_text("color #1/A #ff00ff\n", encoding="utf-8")
+    pkg = init_package(native=script, out=tmp_path / "pkg")
+    answers = package_answer_template(pkg.semantic_layer)
+    answers["claim"].update(
+        {
+            "id": "claim:panel-a",
+            "claim_text": "The panel shows chain A.",
+            "figure_ref": "Figure 1A",
+        }
+    )
+    answers["scene_semantics_by_operation"][0]["claim_critical"] = False
+    answers["waivers"] = [
+        {
+            "rule_id": "CLAIM.EXAMPLE",
+            "scope": "claim:panel-a",
+            "anchor_id": "claim:panel-a",
+            "reason": "Reviewed for this claim.",
+            "reviewer": "author",
+            "max_export_mode": "draft",
+        }
+    ]
+
+    problems = check_answers(answers, pkg.semantic_layer)
+
+    assert not any("waivers[0] references unknown anchor_id" in problem for problem in problems)
+    apply_answers(pkg.root, pkg.semantic_layer, answers, answer_base=tmp_path)
+    assert any(claim.id == "claim:panel-a" for claim in pkg.semantic_layer.claims)
+    assert pkg.semantic_layer.provenance.waivers[-1].anchor_id == "claim:panel-a"
+
+
 def test_only_pml_template_does_not_invent_missing_structure_or_render(tmp_path: Path):
     script = tmp_path / "scene.pml"
     script.write_text("load model.cif, structure\nshow cartoon, structure\n", encoding="utf-8")
@@ -85,10 +117,12 @@ def test_only_pml_template_does_not_invent_missing_structure_or_render(tmp_path:
     assert answers["evidence"] == []
     answers["claim"]["claim_text"] = "Draft claim recorded from the native scene."
     answers["claim"]["figure_ref"] = "Figure 1A"
+    answers["uncertainty"] = []
     assert check_answers(answers, pkg.semantic_layer) == []
     assert completed_answer_sections(answers) == {
         "claim",
         "entities",
+        "evidence",
         "scene",
         "uncertainty",
         "reuse",
@@ -123,3 +157,19 @@ def test_reapplying_answers_is_idempotent(tmp_path: Path):
         len(pkg.semantic_layer.uncertainty),
         len(pkg.semantic_layer.visual_encoding_semantics),
     ) == first_counts
+
+
+def test_reapplying_answers_can_add_remote_artifact_checksum(tmp_path: Path):
+    pkg = init_package(blank=True, out=tmp_path / "pkg")
+    url = "https://example.org/model.cif"
+    answers = {"artifacts": [{"url": url, "role": "generic"}]}
+
+    apply_answers(pkg.root, pkg.semantic_layer, answers, answer_base=tmp_path)
+    answers["artifacts"][0].update({"role": "structure", "sha256": "a" * 64})
+    apply_answers(pkg.root, pkg.semantic_layer, answers, answer_base=tmp_path)
+
+    matching = [artifact for artifact in pkg.semantic_layer.artifacts if artifact.url == url]
+    assert len(matching) == 1
+    assert matching[0].role.value == "structure"
+    assert matching[0].sha256 == "a" * 64
+    assert matching[0].fixity_status == "available"
