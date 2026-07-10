@@ -16,25 +16,15 @@ resources.
 
 ### 1. Install ClaimTrace
 
-ClaimTrace requires Python 3.10 or newer. Run one of the following commands
-from the repository root, where `pyproject.toml` and `dist/` are located.
-
-Install from the source checkout:
+ClaimTrace requires Python 3.10 or newer. Install it from PyPI:
 
 ```bash
-python -m pip install .
+python -m pip install claimtrace
 claimtrace --version
 ```
 
-Or install the included wheel:
-
-```bash
-python -m pip install "./dist/claimtrace-0.1.0-py3-none-any.whl"
-claimtrace --version
-```
-
-Both options work in Bash and PowerShell. A virtual environment is optional,
-but useful if you want to keep ClaimTrace separate from other Python tools.
+This works in Bash and PowerShell. A virtual environment is optional, but
+useful if you want to keep ClaimTrace separate from other Python tools.
 
 ### 2. Create a package
 
@@ -93,9 +83,24 @@ If you only have the scene file and no supporting evidence yet, use:
 evidence: []
 ```
 
+Review the generated `uncertainty` statement as well. Replace its placeholder
+with a caveat you can stand behind, or use `uncertainty: []` when no separate
+caveat applies to a simple descriptive view.
+
 If the generated file contains review entries for colors or labels, follow the
 `review_instruction` beside each one. The next section explains the available
 choices.
+
+When attached files support the claim, add a short evidence entry. For a simple
+panel reviewed against its render and structure, for example:
+
+```yaml
+evidence:
+  - evidence_kind: manual_rationale
+    method_name: Author visual review
+    result_summary: The rendered panel and attached structure were reviewed together.
+    source_artifact_roles: [render_image, structure]
+```
 
 Now check the file:
 
@@ -255,9 +260,10 @@ value, method, cutoff, units, and interpretation. A color ramp over a generic
 numeric field also needs context, such as whether an atom `b` field represents
 crystallographic B-factors, AlphaFold pLDDT, or another imported quantity.
 
-Passing archive validation confirms package completeness, traceability, and
-required author review. Readers can then evaluate the linked scientific
-evidence directly.
+Passing archive validation means the package passed ClaimTrace's configured
+blocking checks for completeness and traceability. Scientific interpretation
+remains a reviewer judgment, so read the warnings, waivers, non-blocking notes,
+and linked evidence alongside the package.
 
 ## Replay and review
 
@@ -336,7 +342,7 @@ claimtrace init "./figure_A.mvsj"
 
 Replace `.mvsj` with `.pml`, `.cxc`, or `.mvsx` in either example. Inside WSL,
 translate `C:\Users\...` to `/mnt/c/Users/...`. Paths stored in a package are
-package-relative, so the exported package remains portable between platforms.
+package-relative, avoiding machine-specific absolute paths in the exported package.
 
 To extract and validate a zip in PowerShell:
 
@@ -384,6 +390,7 @@ scene-package/
   schema/                    # added during export
   README.md                  # generated for the recipient
   validation_report.json     # added during export
+  claimtrace-export.json     # identifies a completed ClaimTrace export
 ```
 
 `semantic_layer.json` is the canonical machine-readable manifest. Exported
@@ -394,12 +401,13 @@ inventory.
 
 | What you see | What to try |
 | --- | --- |
-| `No matching distribution found for claimtrace` | Run `python -m pip install .` from the repository root or install the local wheel in `dist/` |
+| `No matching distribution found for claimtrace` | Check the package name, network connection, Python version, and configured package index. From a source checkout, use `python -m pip install .` |
 | `claimtrace: command not found` | Check the active environment with `python -m pip show claimtrace`, reopen the shell, or run `python -m claimtrace --help` |
 | `Input file not found` | Check the current folder, quote paths containing spaces, and use the path syntax for your current shell |
 | `Output directory already exists` | Choose another `--out` path. Use `--force` only when the target is an existing ClaimTrace package you intend to replace |
 | A referenced local file is unresolved | Add the file with `claimtrace add-artifact`, or rerun `init` with `--artifact` |
 | `Invalid MolViewSpec JSON` | Use the reported line and column, save the file as UTF-8 JSON, and rerun `init` |
+| A PyMOL or ChimeraX scene is not valid UTF-8 | Re-save the script as UTF-8 (a UTF-8 BOM is accepted) and rerun `init` |
 | An item needs author review | Run `claimtrace inspect "scene-package"`, then record whether the item affects the figure in `answers.yml` |
 | Answer checking lists remaining fields | Keep editing the same file and rerun `--check-answers`; the package changes only after you use `--answers` |
 | An MVSX member is missing | Rebuild the `.mvsx` with the file at the path used by `index.mvsj`; an outside sibling cannot satisfy an archive member |

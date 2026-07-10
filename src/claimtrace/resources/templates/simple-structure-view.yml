@@ -23,10 +23,10 @@ evidence:
 scene:
   color_meanings: {}
   label_meanings: {}
-  notes: ClaimTrace records literal colors and labels automatically. Tool suggestions are not author-confirmed; confirm figure-central meanings or mark them presentation only.
+  notes: ''
 uncertainty:
   category: scope
-  statement: This package records a visual structure view and does not assert a molecular mechanism.
+  statement: "TODO: add a useful caveat, or set uncertainty: [] if none applies"
 reuse:
   license: unknown
   citation: unknown

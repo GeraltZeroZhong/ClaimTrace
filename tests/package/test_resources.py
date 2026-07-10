@@ -3,10 +3,24 @@ from types import SimpleNamespace
 from claimtrace.package.resources import resource_matches_artifact, synchronize_resource_bindings
 
 
+def _artifact(**values):
+    defaults = {
+        "id": "artifact:test",
+        "path": "data/test.dat",
+        "kind": "local_attached",
+        "included": True,
+        "sha256": "0" * 64,
+        "role": SimpleNamespace(value="generic"),
+        "format": "application/octet-stream",
+    }
+    defaults.update(values)
+    return SimpleNamespace(**defaults)
+
+
 def test_resource_matching_uses_basename_only_for_bare_native_paths():
     semantic = SimpleNamespace(
         artifacts=[
-            SimpleNamespace(path="data/structures/model.cif"),
+            _artifact(path="data/structures/model.cif"),
         ]
     )
 
@@ -23,8 +37,8 @@ def test_known_native_resource_must_resolve_from_native_script_directory():
     )
     semantic = SimpleNamespace(
         artifacts=[
-            SimpleNamespace(id="artifact:pml", path="native/figure_A.pml"),
-            SimpleNamespace(id="artifact:model", path="data/structures/model.cif"),
+            _artifact(id="artifact:pml", path="native/figure_A.pml"),
+            _artifact(id="artifact:model", path="data/structures/model.cif"),
         ],
         resource_references=[resource],
     )
@@ -63,8 +77,8 @@ def test_json_resource_binding_resolves_only_the_same_json_pointer():
     )
     semantic = SimpleNamespace(
         artifacts=[
-            SimpleNamespace(id="artifact:mvsj", path="native/scene.mvsj"),
-            SimpleNamespace(id="artifact:annotation", path="native/annotations.json"),
+            _artifact(id="artifact:mvsj", path="native/scene.mvsj"),
+            _artifact(id="artifact:annotation", path="native/annotations.json"),
         ],
         resource_references=[resource],
         native_references=[matching_ref, unrelated_ref],

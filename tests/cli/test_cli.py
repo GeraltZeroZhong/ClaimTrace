@@ -3,6 +3,7 @@ import re
 import zipfile
 from pathlib import Path
 
+from PIL import Image
 from typer.testing import CliRunner
 
 from claimtrace import _simple_yaml
@@ -10,6 +11,10 @@ from claimtrace.cli import app
 
 
 runner = CliRunner()
+
+
+def write_png(path: Path) -> None:
+    Image.new("RGB", (2, 2), color=(32, 96, 160)).save(path, format="PNG")
 
 
 def _current_example_answers(package: Path, tmp_path: Path) -> Path:
@@ -38,6 +43,9 @@ def test_cli_quickstart_shows_short_user_path():
     result = runner.invoke(app, ["quickstart"])
 
     assert result.exit_code == 0
+    assert "python -m pip install claimtrace" in result.stdout
+    assert "not published on PyPI" not in result.stdout
+    assert "./dist/claimtrace" not in result.stdout
     assert "Supported native scene files: .pml, .cxc, .mvsj, .mvsx" in result.stdout
     assert 'claimtrace init "figure_A.pml"' in result.stdout
     assert 'Edit "scene-package/answers.yml"' in result.stdout
@@ -49,6 +57,16 @@ def test_cli_schema_outputs_json():
     result = runner.invoke(app, ["schema"])
     assert result.exit_code == 0
     assert "Claim Accountability Layer" in result.stdout
+
+
+def test_cli_schema_out_writes_without_echoing_full_schema(tmp_path: Path):
+    output = tmp_path / "semantic-layer.schema.json"
+
+    result = runner.invoke(app, ["schema", "--out", str(output)])
+
+    assert result.exit_code == 0
+    assert result.stdout.strip() == f"Wrote schema: {output}"
+    assert "Claim Accountability Layer" in output.read_text(encoding="utf-8")
 
 
 def test_cli_schema_rejects_unknown_format():
@@ -179,6 +197,18 @@ def test_cli_missing_package_error_suggests_init(tmp_path: Path):
     assert ".pml, .cxc, .mvsj, .mvsx" in result.output
 
 
+def test_cli_scene_file_used_as_package_gets_executable_recovery_command(tmp_path: Path):
+    scene = tmp_path / "scene.cxc"
+    scene.write_text("view\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["inspect", str(scene)])
+
+    assert result.exit_code == 1
+    assert "supported scene file, not a package directory" in result.output
+    assert f'claimtrace init "{scene}" --out "scene-package"' in result.output
+    assert f'--out "{scene}"' not in result.output
+
+
 def test_cli_check_answers_rejects_template_placeholders(tmp_path: Path):
     script = tmp_path / "scene.pml"
     script.write_text("show cartoon\n", encoding="utf-8")
@@ -194,6 +224,25 @@ def test_cli_check_answers_rejects_template_placeholders(tmp_path: Path):
     result = runner.invoke(app, ["complete", str(out), "--check-answers", str(answers)])
     assert result.exit_code == 1
     assert "claim.claim_text is still unknown" in result.output
+
+
+def test_cli_simple_template_requires_author_review_of_uncertainty(tmp_path: Path):
+    script = tmp_path / "scene.pml"
+    script.write_text("show cartoon\n", encoding="utf-8")
+    out = tmp_path / "pkg"
+    result = runner.invoke(app, ["init", str(script), "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    answers = _simple_yaml.loads((out / "answers.yml").read_text(encoding="utf-8"))
+    answers["claim"]["claim_text"] = "Figure 1A shows a cartoon structure view."
+    answers["claim"]["figure_ref"] = "Figure 1A"
+    answers["evidence"] = []
+    answers_path = tmp_path / "answers.yml"
+    answers_path.write_text(_simple_yaml.dumps(answers), encoding="utf-8")
+
+    result = runner.invoke(app, ["complete", str(out), "--check-answers", str(answers_path)])
+
+    assert result.exit_code == 1
+    assert "uncertainty[0].statement is still unknown" in result.output
 
 
 def test_cli_init_refuses_non_empty_output_without_force(tmp_path: Path):
@@ -441,7 +490,7 @@ def test_cli_inspect_text_prioritizes_scientific_operation_over_global_config(tm
 
 def test_cli_complete_actions_are_mutually_exclusive(tmp_path: Path):
     image = tmp_path / "figure.png"
-    image.write_bytes(b"image")
+    write_png(image)
     out = tmp_path / "pkg"
     result = runner.invoke(app, ["init", "--image", str(image), "--out", str(out)])
     assert result.exit_code == 0, result.output
@@ -480,7 +529,7 @@ def test_cli_complete_complex_scene_preserves_template_and_guides_without_prompt
 
 def test_cli_interactive_failure_saves_entity_answer_in_draft(tmp_path: Path):
     image = tmp_path / "figure.png"
-    image.write_bytes(b"image")
+    write_png(image)
     out = tmp_path / "pkg"
     result = runner.invoke(app, ["init", "--image", str(image), "--out", str(out)])
     assert result.exit_code == 0, result.output
@@ -501,7 +550,7 @@ def test_cli_interactive_failure_saves_entity_answer_in_draft(tmp_path: Path):
 
 def test_cli_interactive_success_marks_completion_tasks_answered(tmp_path: Path):
     image = tmp_path / "figure.png"
-    image.write_bytes(b"image")
+    write_png(image)
     out = tmp_path / "pkg"
     result = runner.invoke(app, ["init", "--image", str(image), "--out", str(out)])
     assert result.exit_code == 0, result.output

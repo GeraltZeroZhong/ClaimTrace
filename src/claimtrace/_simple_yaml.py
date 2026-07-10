@@ -9,33 +9,45 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from claimtrace._finite import ensure_finite
+
 
 def loads(text: str) -> Any:
     stripped = text.strip()
     if not stripped:
         return {}
     try:
-        return json.loads(stripped)
+        return ensure_finite(
+            json.loads(stripped, parse_constant=_reject_json_constant),
+            "answers",
+        )
     except json.JSONDecodeError:
         pass
     try:
         import yaml  # type: ignore
-
-        return yaml.safe_load(text) or {}
-    except Exception:
+    except ImportError:
         lines = _prepare_lines(text)
         value, index = _parse_block(lines, 0, 0)
         if index < len(lines):
             raise ValueError(f"Could not parse YAML near line {index + 1}")
+        return ensure_finite(value, "answers")
+    try:
+        value = yaml.safe_load(text) or {}
+        ensure_finite(value, "answers")
         return value
+    except yaml.YAMLError as exc:
+        mark = getattr(exc, "problem_mark", None)
+        location = f" at line {mark.line + 1}, column {mark.column + 1}" if mark else ""
+        raise ValueError(f"Invalid answers YAML{location}: {exc}") from exc
 
 
 def dumps(data: Any) -> str:
+    ensure_finite(data, "answers")
     try:
         import yaml  # type: ignore
 
-        return yaml.safe_dump(data, sort_keys=False, allow_unicode=False)
-    except Exception:
+        return yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
+    except ImportError:
         return _dump_value(data, 0).rstrip() + "\n"
 
 
@@ -57,6 +69,10 @@ def _prepare_lines(text: str) -> list[tuple[int, str]]:
         indent = len(raw) - len(raw.lstrip(" "))
         prepared.append((indent, raw.strip()))
     return prepared
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"Non-finite numeric value {value} is not valid JSON.")
 
 
 def _parse_block(lines: list[tuple[int, str]], index: int, indent: int) -> tuple[Any, int]:

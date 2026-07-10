@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ from claimtrace.models import Claim, ProvenancedString, SemanticLayer
 from claimtrace.models.semantic_layer import ClaimType, ConfidenceValue, ReviewStatus, SourceType, utc_now
 from claimtrace.models.validation import ValidationReport
 from claimtrace.package.layout import (
+    _validate_force_replace_root,
     append_extraction_report,
     create_package_root,
     load_semantic_layer,
@@ -29,7 +31,7 @@ from claimtrace.package.layout import (
     write_completion_tasks,
     write_semantic_layer,
 )
-from claimtrace.package.registry import register_local_artifact, replay_destination_for
+from claimtrace.package.registry import infer_role, register_local_artifact, replay_destination_for
 from claimtrace.path_hints import windows_path_hint
 from claimtrace.package.resources import synchronize_resource_bindings
 
@@ -75,7 +77,11 @@ class ClaimTracePackage:
             review_status=ReviewStatus.confirmed,
         )
         self.semantic_layer.claims.append(claim)
-        self.semantic_layer.add_activity("api_add_claim", f"Added claim {claim.id}.")
+        self.semantic_layer.add_activity(
+            "api_add_claim",
+            f"Added claim {claim.id}.",
+            generated_ids=[claim.id],
+        )
         self.save()
         return claim
 
@@ -85,10 +91,18 @@ class ClaimTracePackage:
         role: str | None = None,
         *,
         detached: bool = False,
+        scene_id: str | None = None,
     ):
         """Register a local artifact and copy it into the package by default."""
 
         source = Path(path)
+        inferred_role = infer_role(source, role)
+        if scene_id is not None and inferred_role.value != "render_image":
+            raise ValueError("--scene/scene_id can only be used with a rendered-image artifact.")
+        if scene_id is not None and not any(
+            scene.id == scene_id for scene in self.semantic_layer.scenes
+        ):
+            raise ValueError(f"Unknown scene id for rendered panel: {scene_id}")
         artifact = register_local_artifact(
             self.root,
             self.semantic_layer,
@@ -98,7 +112,17 @@ class ClaimTracePackage:
             detached=detached,
             relative_destination=replay_destination_for(self.semantic_layer, source),
         )
-        self.semantic_layer.add_activity("api_add_artifact", f"Added artifact {artifact.id}.")
+        if artifact.role.value == "render_image":
+            ensure_scene_for_images(
+                self.semantic_layer,
+                [artifact.id],
+                scene_id=scene_id,
+            )
+        self.semantic_layer.add_activity(
+            "api_add_artifact",
+            f"Added artifact {artifact.id}.",
+            generated_ids=[artifact.id],
+        )
         self.save()
         return artifact
 
@@ -144,7 +168,10 @@ class ClaimTracePackage:
 
         from claimtrace.export.directory import export_package
 
-        return export_package(self.root, Path(output), mode=mode, zip_output=zip_output, force=force)
+        output_path = Path(output)
+        if zip_output is None:
+            zip_output = output_path.suffix.lower() == ".zip"
+        return export_package(self.root, output_path, mode=mode, zip_output=zip_output, force=force)
 
 
 def init_package(
@@ -167,6 +194,9 @@ def init_package(
     if not input_paths and not blank:
         raise PackageError("No input files were provided. Add --native, --image or --artifact, or pass --blank.")
     _ensure_inputs_exist(input_paths)
+    if force and root.exists() and root.is_dir() and any(root.iterdir()):
+        _validate_force_replace_root(root)
+    _ensure_inputs_outside_output(input_paths, root)
     _ensure_supported_inputs(native_paths, {".pml", ".cxc", ".mvsj", ".mvsx"}, "native scene")
     _ensure_supported_inputs(
         image_paths,
@@ -176,8 +206,23 @@ def init_package(
     tasks = completion_tasks_for_template(template)
     root_was_absent = not root.exists()
     root_was_empty = root.exists() and root.is_dir() and not any(root.iterdir())
+    backup_container: Path | None = None
+    backup_root: Path | None = None
+    if force and root.exists() and root.is_dir() and any(root.iterdir()):
+        backup_container = Path(
+            tempfile.mkdtemp(
+                prefix=f".{root.name}.claimtrace-backup-",
+                dir=root.parent.resolve(),
+            )
+        )
+        backup_root = backup_container / "original"
+        root.rename(backup_root)
     try:
-        semantic = create_package_root(root, title=title, force=force)
+        semantic = create_package_root(
+            root,
+            title=title,
+            force=force and backup_root is None,
+        )
         semantic.package.profile = template
         importers = default_importers(include_experimental=False)
         for path in native_paths:
@@ -193,14 +238,30 @@ def init_package(
                 copy=True,
                 relative_destination=replay_destination_for(semantic, source),
             )
-            semantic.add_activity("artifact_registration", f"Registered artifact {artifact.id}.")
+            semantic.add_activity(
+                "artifact_registration",
+                f"Registered artifact {artifact.id}.",
+                generated_ids=[artifact.id],
+            )
         ensure_scene_for_images(semantic)
         synchronize_resource_bindings(semantic)
         write_semantic_layer(root, semantic)
         write_completion_tasks(root, tasks + read_completion_tasks(root))
-        return ClaimTracePackage(root=root, semantic_layer=semantic)
+        package = ClaimTracePackage(root=root, semantic_layer=semantic)
+        if backup_container is not None:
+            shutil.rmtree(backup_container)
+        return package
     except Exception:
-        if (root_was_absent or root_was_empty) and root.exists():
+        if backup_root is not None and backup_root.exists():
+            if root.exists():
+                if root.is_dir() and not root.is_symlink():
+                    shutil.rmtree(root)
+                else:
+                    root.unlink()
+            backup_root.rename(root)
+            if backup_container is not None:
+                shutil.rmtree(backup_container)
+        elif (root_was_absent or root_was_empty) and root.exists():
             shutil.rmtree(root)
             if root_was_empty:
                 root.mkdir(parents=True, exist_ok=True)
@@ -255,6 +316,7 @@ def _register_and_import(root: Path, semantic: SemanticLayer, source: Path, impo
     semantic.add_activity(
         "static_import",
         f"Imported {artifact.path} with {result.importer_name}.",
+        used_artifact_ids=[artifact.id],
         importer=result.importer_name,
         warnings=result.warnings,
     )
@@ -275,6 +337,16 @@ def _ensure_inputs_exist(paths: list[Path]) -> None:
                 f"Input file not found: {path}. "
                 "Run from the directory containing the file or pass an absolute path."
                 f"{windows_path_hint(path)}"
+            )
+
+
+def _ensure_inputs_outside_output(paths: list[Path], root: Path) -> None:
+    root_resolved = root.resolve(strict=False)
+    for path in paths:
+        if path.resolve().is_relative_to(root_resolved):
+            raise PackageError(
+                f"Input file is inside the output package and could be deleted or overwritten: {path}. "
+                "Move the input outside --out or choose a different output directory."
             )
 
 

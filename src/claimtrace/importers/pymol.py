@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import shlex
+import math
 import re
+import shlex
 from pathlib import Path
 from uuid import uuid5, NAMESPACE_URL
 
@@ -131,9 +132,15 @@ class PyMOLImporter:
     def import_into(self, path: Path, artifact_id: str, semantic: SemanticLayer) -> ImportResult:
         scene = _ensure_scene(semantic, artifact_id)
         result = ImportResult(importer_name=self.name)
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        try:
+            lines = path.read_text(encoding="utf-8-sig").splitlines()
+        except UnicodeDecodeError as exc:
+            raise ValueError(
+                f"PyMOL scene is not valid UTF-8 near byte {exc.start}: {path}. "
+                "Save the file as UTF-8 and try again."
+            ) from exc
         for line_no, raw_line in _logical_lines(lines):
-            for ordinal, stripped in enumerate(_split_pml_statements(raw_line)):
+            for ordinal, (stripped, column) in enumerate(_split_pml_statements(raw_line)):
                 command, args = _split_command(stripped)
                 lower = command.lower()
                 if _is_dynamic(stripped, lower):
@@ -142,12 +149,16 @@ class PyMOLImporter:
                         semantic,
                         artifact_id,
                         line_no,
+                        column,
+                        ordinal,
                         stripped,
                         "dynamic_or_executable_pymol_content",
+                        scene.id,
                     )
                     fact = _fact(
                         line_no,
                         ordinal,
+                        column,
                         artifact_id,
                         stripped,
                         lower or "raw",
@@ -171,13 +182,17 @@ class PyMOLImporter:
                         semantic,
                         artifact_id,
                         line_no,
+                        column,
+                        ordinal,
                         stripped,
                         f"unknown_pymol_command:{lower}",
+                        scene.id,
                     )
                     result.facts.append(
                         _fact(
                             line_no,
                             ordinal,
+                            column,
                             artifact_id,
                             stripped,
                             lower,
@@ -188,9 +203,37 @@ class PyMOLImporter:
                         )
                     )
                     continue
+                if lower == "set_view" and not _valid_set_view(stripped):
+                    scene.parse_confidence = ConfidenceValue.medium
+                    _record_raw_observation(
+                        semantic,
+                        artifact_id,
+                        line_no,
+                        column,
+                        ordinal,
+                        stripped,
+                        "invalid_pymol_set_view",
+                        scene.id,
+                    )
+                    result.facts.append(
+                        _fact(
+                            line_no,
+                            ordinal,
+                            column,
+                            artifact_id,
+                            stripped,
+                            lower,
+                            {"args": args},
+                            "raw_unsupported",
+                            "medium",
+                            "PyMOL set_view must contain exactly 18 finite numeric values.",
+                        )
+                    )
+                    continue
                 fact = _fact(
                     line_no,
                     ordinal,
+                    column,
                     artifact_id,
                     stripped,
                     lower,
@@ -205,6 +248,7 @@ class PyMOLImporter:
                     artifact_id,
                     line_no,
                     ordinal,
+                    column,
                     lower,
                     args,
                     stripped,
@@ -228,6 +272,24 @@ def _split_command(line: str) -> tuple[str, list[str]]:
     else:
         parts = _shlex_words(rest)
     return command.strip(), parts
+
+
+def _valid_set_view(line: str) -> bool:
+    command_and_rest = line.split(None, 1)
+    if len(command_and_rest) != 2:
+        return False
+    value = command_and_rest[1].strip()
+    if value.startswith("(") or value.endswith(")"):
+        if not (value.startswith("(") and value.endswith(")")):
+            return False
+        value = value[1:-1].strip()
+    tokens = [token for token in re.split(r"[\s,]+", value) if token]
+    if len(tokens) != 18:
+        return False
+    try:
+        return all(math.isfinite(float(token)) for token in tokens)
+    except ValueError:
+        return False
 
 
 def _contains_unquoted_comma(text: str) -> bool:
@@ -307,7 +369,7 @@ def _logical_lines(lines: list[str]):
         yield start_line, buffer
 
 
-def _split_pml_statements(line: str) -> list[str]:
+def _split_pml_statements(line: str) -> list[tuple[str, int]]:
     """Split a logical PML line at top-level semicolons.
 
     Quotes and bracketed expressions (notably ``set_view (...)`` and label
@@ -315,12 +377,13 @@ def _split_pml_statements(line: str) -> list[str]:
     already been removed per physical line by :func:`_logical_lines`.
     """
 
-    statements: list[str] = []
+    statements: list[tuple[str, int]] = []
     buffer: list[str] = []
     quote: str | None = None
     escaped = False
     depth = 0
-    for char in line:
+    segment_start = 0
+    for index, char in enumerate(line):
         if quote:
             buffer.append(char)
             if escaped:
@@ -340,15 +403,20 @@ def _split_pml_statements(line: str) -> list[str]:
             depth = max(0, depth - 1)
             buffer.append(char)
         elif char == ";" and depth == 0:
-            statement = "".join(buffer).strip()
+            raw_statement = "".join(buffer)
+            statement = raw_statement.strip()
             if statement:
-                statements.append(statement)
+                leading = len(raw_statement) - len(raw_statement.lstrip())
+                statements.append((statement, segment_start + leading + 1))
             buffer = []
+            segment_start = index + 1
         else:
             buffer.append(char)
-    statement = "".join(buffer).strip()
+    raw_statement = "".join(buffer)
+    statement = raw_statement.strip()
     if statement:
-        statements.append(statement)
+        leading = len(raw_statement) - len(raw_statement.lstrip())
+        statements.append((statement, segment_start + leading + 1))
     return statements
 
 
@@ -427,6 +495,8 @@ def _is_dynamic(line: str, command: str) -> bool:
     lowered = _unquoted_text(line).lower()
     if lowered.startswith(UNSAFE_PREFIXES) or command in {"run", "python", "alias", "do", "spawn"}:
         return True
+    if re.search(r"\$(?:\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*|\d+)", line):
+        return True
     return any(token in lowered for token in ["${", " for ", " while ", " import ", "exec("])
 
 
@@ -476,6 +546,7 @@ def _sync_scene(semantic: SemanticLayer, scene: Scene) -> None:
 def _fact(
     line_no: int,
     ordinal: int,
+    column: int,
     artifact_id: str,
     native_command: str,
     command: str,
@@ -489,7 +560,7 @@ def _fact(
         fact_id=f"fact-pymol-{namespace}-{line_no:04d}-{ordinal:03d}",
         tool="pymol",
         artifact_id=artifact_id,
-        source_location={"artifact_id": artifact_id, "line": line_no, "column": 1},
+        source_location={"artifact_id": artifact_id, "line": line_no, "column": column},
         native_command=native_command,
         native_value={"command": command, **native_value},
         normalized_target={"object_type": f"pymol.{command}", "json_pointer": ""},
@@ -526,6 +597,7 @@ def _normalize_pymol_command(
     artifact_id: str,
     line_no: int,
     ordinal: int,
+    column: int,
     command: str,
     args: list[str],
     native_command: str,
@@ -540,6 +612,7 @@ def _normalize_pymol_command(
             target=target,
             line_no=line_no,
             ordinal=ordinal,
+            column=column,
             native_command=native_command,
             details=details,
         )
@@ -554,8 +627,11 @@ def _normalize_pymol_command(
                 semantic,
                 artifact_id,
                 line_no,
+                column,
+                ordinal,
                 native_command,
                 f"{name_issue}_pymol_selection_name:{name}",
+                scene.id,
             )
         selection = Selection(
             id=_selection_id(artifact_id, name),
@@ -563,7 +639,7 @@ def _normalize_pymol_command(
             native_selector=ProvenancedString(
                 value=selector,
                 source_type=SourceType.native_file,
-                source_location=SourceLocation(artifact_id=artifact_id, line=line_no, column=1),
+                source_location=SourceLocation(artifact_id=artifact_id, line=line_no, column=column),
                 confidence=ConfidenceValue.high,
                 review_status=ReviewStatus.needs_review,
             ),
@@ -617,7 +693,7 @@ def _normalize_pymol_command(
             option_value = _option(args, index, option_name, "")
             if option_value:
                 details[option_name] = option_value
-        _record_resource_reference(semantic, artifact_id, line_no, uri, object_name, command)
+        _record_resource_reference(semantic, artifact_id, line_no, column, uri, object_name, command)
         observe("loaded" if command == "load" else "fetched", object_name, details)
         fact.normalized_target = {"object_type": "native.resource_reference", "json_pointer": ""}
         fact.normalized_value = {"uri": uri, "object": object_name, **details}
@@ -1034,6 +1110,7 @@ def _record_scene_operation(
     target: str,
     line_no: int,
     ordinal: int,
+    column: int,
     native_command: str,
     details: dict[str, object] | None = None,
 ) -> None:
@@ -1054,7 +1131,7 @@ def _record_scene_operation(
         meaning_confidence=suggestion.meaning_confidence,
         meaning_basis=suggestion.meaning_basis,
         needs_author_confirmation=suggestion.needs_author_confirmation,
-        source_location=SourceLocation(artifact_id=artifact_id, line=line_no, column=1),
+        source_location=SourceLocation(artifact_id=artifact_id, line=line_no, column=column),
         native_command=native_command,
         native_value={"tool": "pymol", "operation": operation, "target": target, "details": details},
         support_status=SupportStatus.supported_shallow,
@@ -1078,7 +1155,7 @@ def _record_scene_operation(
             "operation": operation,
             "target": target,
             "details": details,
-            "source_location": {"line": line_no, "column": 1},
+            "source_location": {"line": line_no, "column": column},
             "native_command": native_command,
             "source_type": "native_file",
             "review_status": "auto_extracted",
@@ -1098,13 +1175,16 @@ def _record_raw_observation(
     semantic: SemanticLayer,
     artifact_id: str,
     line_no: int,
+    column: int,
+    ordinal: int,
     native_text: str,
     reason: str,
+    scene_id: str,
 ) -> None:
     raw = RawNativeObservation(
-        raw_id=f"raw:pymol:{uuid5(NAMESPACE_URL, f'{artifact_id}:{line_no}:{native_text}').hex[:12]}",
+        raw_id=f"raw:pymol:{uuid5(NAMESPACE_URL, f'{artifact_id}:{line_no}:{column}:{ordinal}:{native_text}').hex[:12]}",
         artifact_id=artifact_id,
-        source_location=SourceLocation(artifact_id=artifact_id, line=line_no, column=1),
+        source_location=SourceLocation(artifact_id=artifact_id, line=line_no, column=column),
         native_text=native_text,
         reason=reason,
         support_status=SupportStatus.raw_unsupported,
@@ -1113,6 +1193,7 @@ def _record_raw_observation(
             score=0.25,
             basis=["pymol_raw_preserved", "runtime_unverified"],
         ),
+        may_affect_scene_id=scene_id,
         claim_critical=ClaimCriticalStatus.unknown,
         review_status=ReviewStatus.needs_review,
     )
@@ -1124,12 +1205,13 @@ def _record_resource_reference(
     semantic: SemanticLayer,
     artifact_id: str,
     line_no: int,
+    column: int,
     uri: str,
     object_name: str,
     command: str,
 ) -> None:
-    resource_id = f"resource:pymol:{uuid5(NAMESPACE_URL, f'{artifact_id}:{line_no}:{uri}').hex[:12]}"
-    native_ref_id = f"native-ref:pymol:{uuid5(NAMESPACE_URL, f'{artifact_id}:{line_no}:{object_name}').hex[:12]}"
+    resource_id = f"resource:pymol:{uuid5(NAMESPACE_URL, f'{artifact_id}:{line_no}:{column}:{uri}').hex[:12]}"
+    native_ref_id = f"native-ref:pymol:{uuid5(NAMESPACE_URL, f'{artifact_id}:{line_no}:{column}:{object_name}').hex[:12]}"
     resource = ResourceReference(
         resource_ref_id=resource_id,
         artifact_id=artifact_id,
@@ -1138,13 +1220,13 @@ def _record_resource_reference(
         fetch_status="not_fetched",
         fixity_status="unknown",
         claim_critical=ClaimCriticalStatus.unknown,
-        source_location=SourceLocation(artifact_id=artifact_id, line=line_no, column=1),
+        source_location=SourceLocation(artifact_id=artifact_id, line=line_no, column=column),
     )
     if not any(existing.resource_ref_id == resource_id for existing in semantic.resource_references):
         semantic.resource_references.append(resource)
     native_ref = NativeReference(
         native_ref_id=native_ref_id,
-        source_location=SourceLocation(artifact_id=artifact_id, line=line_no, column=1),
+        source_location=SourceLocation(artifact_id=artifact_id, line=line_no, column=column),
         native_expression=object_name,
         ref_type="pymol_object",
         stable_identity=uri if command == "load" else None,

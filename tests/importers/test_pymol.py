@@ -22,6 +22,48 @@ def test_pymol_importer_extracts_selection_and_downgrades_dynamic(tmp_path: Path
     assert "hydrogen" not in result.fact_dicts()[1]["normalized_value"].get("classification", "")
 
 
+def test_pymol_environment_variable_path_is_preserved_as_dynamic(tmp_path: Path):
+    pml = tmp_path / "scene.pml"
+    pml.write_text('load "${PYMOL_PATH}/data/model.cif"\n', encoding="utf-8")
+    semantic = SemanticLayer.new("pkg-test")
+
+    result = PyMOLImporter().import_into(pml, "artifact:pml", semantic)
+
+    assert [fact.support_status for fact in result.facts] == ["raw_unsupported"]
+    assert [item.reason for item in semantic.raw_native_observations] == [
+        "dynamic_or_executable_pymol_content"
+    ]
+    assert not semantic.resource_references
+
+
+def test_pymol_same_line_resources_keep_distinct_source_columns(tmp_path: Path):
+    pml = tmp_path / "scene.pml"
+    pml.write_text("load first.cif, first; load second.cif, second\n", encoding="utf-8")
+    semantic = SemanticLayer.new("pkg-test")
+
+    result = PyMOLImporter().import_into(pml, "artifact:pml", semantic)
+
+    assert [resource.uri for resource in semantic.resource_references] == [
+        "first.cif",
+        "second.cif",
+    ]
+    assert [fact.source_location["column"] for fact in result.facts] == [1, 24]
+
+
+def test_pymol_duplicate_raw_statements_are_both_preserved_and_linked_to_scene(tmp_path: Path):
+    pml = tmp_path / "scene.pml"
+    pml.write_text("mystery value; mystery value\n", encoding="utf-8")
+    semantic = SemanticLayer.new("pkg-test")
+
+    PyMOLImporter().import_into(pml, "artifact:pml", semantic)
+
+    assert len(semantic.raw_native_observations) == 2
+    assert len({item.raw_id for item in semantic.raw_native_observations}) == 2
+    assert {
+        item.may_affect_scene_id for item in semantic.raw_native_observations
+    } == {semantic.scenes[0].id}
+
+
 def test_pymol_importer_auto_records_scene_operations(tmp_path: Path):
     pml = tmp_path / "scene.pml"
     pml.write_text(
@@ -78,8 +120,9 @@ def test_pymol_importer_keeps_multiline_set_view_together(tmp_path: Path):
     pml = tmp_path / "scene.pml"
     pml.write_text(
         "set_view (\\\n"
-        "  0.999, 0.010, 0.000,\\\n"
-        "  0.000, 0.000, 1.000 )\n",
+        "  1, 0, 0, 0, 1, 0,\\\n"
+        "  0, 0, 1, 0, 0, -10,\\\n"
+        "  0, 0, 0, 1, 20, -10 )\n",
         encoding="utf-8",
     )
     semantic = SemanticLayer.new("pkg-test")
@@ -89,6 +132,20 @@ def test_pymol_importer_keeps_multiline_set_view_together(tmp_path: Path):
     assert not semantic.raw_native_observations
     assert any(operation.operation == "camera_set" for operation in semantic.observed_scene_operations)
     assert all(fact.support_status != "raw_unsupported" for fact in result.facts)
+
+
+def test_pymol_invalid_set_view_does_not_satisfy_camera_state(tmp_path: Path):
+    pml = tmp_path / "scene.pml"
+    pml.write_text("set_view (1, 0, 0)\n", encoding="utf-8")
+    semantic = SemanticLayer.new("pkg-test")
+
+    result = PyMOLImporter().import_into(pml, "artifact:pml", semantic)
+
+    assert semantic.scenes[0].camera == {}
+    assert [item.reason for item in semantic.raw_native_observations] == [
+        "invalid_pymol_set_view"
+    ]
+    assert [fact.support_status for fact in result.facts] == ["raw_unsupported"]
 
 
 def test_pymol_importer_splits_semicolons_and_strips_only_unquoted_comments(tmp_path: Path):

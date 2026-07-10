@@ -5,6 +5,7 @@ import zipfile
 from claimtrace.api import init_package
 from claimtrace.completion import apply_answers
 from claimtrace.export.readme import render_readme
+from claimtrace.models.semantic_layer import Waiver
 from claimtrace.validation.engine import validate_package
 
 
@@ -106,3 +107,37 @@ def test_readme_bounds_inline_data_uri_for_humans(tmp_path: Path):
 
     assert "inline data URI (chemical/x-pdb" in text
     assert payload not in text
+
+
+def test_readme_replay_commands_quote_powershell_metacharacters(tmp_path: Path):
+    pml = tmp_path / "scene$HOME's.pml"
+    pml.write_text("show cartoon\n", encoding="utf-8")
+    pkg = init_package(native=pml, out=tmp_path / "pkg")
+
+    text = render_readme(pkg.semantic_layer)
+
+    assert "Replay only native scripts you trust" in text
+    assert "pymol '.\\scene$HOME''s.pml'" in text
+    assert 'pymol ".\\scene$HOME' not in text
+    assert "pymol 'scene$HOME'\"'\"'s.pml'" in text
+
+
+def test_readme_distinguishes_recorded_and_applied_waivers(tmp_path: Path):
+    pkg = init_package(blank=True, out=tmp_path / "pkg")
+    pkg.semantic_layer.provenance.waivers.append(
+        Waiver(
+            rule_id="NO.SUCH.RULE",
+            scope="package",
+            reason="Recorded for a future rule.",
+            reviewer="author",
+            max_export_mode="archive",
+        )
+    )
+    pkg.save()
+    report = validate_package(pkg.root, mode="draft")
+
+    text = render_readme(pkg.semantic_layer, report)
+
+    assert "Waiver records: 1" in text
+    assert "Findings waived: 0" in text
+    assert "with 1 waiver" not in text

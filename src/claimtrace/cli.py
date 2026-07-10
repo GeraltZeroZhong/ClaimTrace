@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.table import Table
 
 from claimtrace import _simple_yaml
+from claimtrace._finite import ensure_finite
 from claimtrace.api import export_package as api_export_package
 from claimtrace.api import init_package, load_package
 from claimtrace.completion import (
@@ -32,7 +33,7 @@ from claimtrace.errors import (
     ValidationError,
 )
 from claimtrace.models.semantic_layer import ArtifactRole, ClaimCriticalStatus, MeaningStatus
-from claimtrace.package.layout import read_completion_tasks, write_completion_tasks, write_json
+from claimtrace.package.layout import read_completion_tasks, read_json, write_completion_tasks, write_json
 from claimtrace.package.registry import infer_role
 from claimtrace.package.resources import resource_matches_artifact, resource_uri_summary
 from claimtrace.path_hints import windows_path_hint
@@ -83,10 +84,7 @@ def quickstart() -> None:
                 "ClaimTrace quickstart",
                 "",
                 "Install:",
-                "   # ClaimTrace is not published on PyPI yet. From a source checkout:",
-                "   python -m pip install .",
-                "   # Or install the wheel bundled with this checkout:",
-                "   python -m pip install ./dist/claimtrace-0.1.0-py3-none-any.whl",
+                "   python -m pip install claimtrace",
                 "",
                 "Supported native scene files: .pml, .cxc, .mvsj, .mvsx",
                 "Also include the rendered panel image and any structure, map, contact table, validation report or note that supports the figure.",
@@ -209,11 +207,23 @@ def init(
             )
         answers_path = pkg.root / "answers.yml"
         _write_answers_template_if_missing(answers_path, pkg.semantic_layer, resolved_template)
+        linked_render_ids = {
+            artifact_id
+            for package_scene in pkg.semantic_layer.scenes
+            for artifact_id in package_scene.render_artifact_ids
+        }
+        unlinked_renders = [
+            item
+            for item in pkg.semantic_layer.artifacts
+            if item.role.value == "render_image" and item.id not in linked_render_ids
+        ]
         payload = {
             "package": str(pkg.root),
             "semantic_layer": str(pkg.root / "semantic_layer.json"),
             "answers": str(answers_path),
             "profile": resolved_template,
+            "unlinked_render_artifacts": [item.id for item in unlinked_renders],
+            "scene_ids": [item.id for item in pkg.semantic_layer.scenes],
         }
         if format == "json":
             typer.echo(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -236,6 +246,21 @@ def init(
                 typer.echo(f"Import note: {warning}")
             for line in _resource_hint_lines(pkg.semantic_layer, pkg.root):
                 typer.echo(line)
+            if unlinked_renders:
+                typer.echo(
+                    "Rendered panels were not auto-linked because this package has multiple scenes. "
+                    "Choose the matching scene explicitly:"
+                )
+                for render in unlinked_renders:
+                    render_path = pkg.root / str(render.path)
+                    typer.echo(
+                        "  claimtrace add-artifact "
+                        f"{_quoted_path(pkg.root)} {_quoted_path(render_path)} "
+                        "--role render_image --scene <scene-id>"
+                    )
+                typer.echo(
+                    "  Scene IDs: " + ", ".join(item.id for item in pkg.semantic_layer.scenes)
+                )
             if required_task_count or optional_task_count:
                 typer.echo(
                     f"Completion prompts: {required_task_count} required, {optional_task_count} optional review"
@@ -265,7 +290,7 @@ def inspect(
         package = _resolve_package_argument(package)
         pkg = load_package(package)
         extraction_path = pkg.root / "semantic" / "extraction_report.json"
-        extraction = json.loads(extraction_path.read_text(encoding="utf-8")) if extraction_path.exists() else {}
+        extraction = read_json(extraction_path) if extraction_path.exists() else {}
         tasks = read_completion_tasks(pkg.root)
         payload = {
             "package_id": pkg.semantic_layer.package.package_id,
@@ -538,6 +563,11 @@ def add_artifact(
     path: Path = typer.Argument(..., help="Artifact path to add."),
     role: Optional[str] = typer.Option(None, "--role", help="Artifact role, e.g. structure, render_image, contact_table, map or evidence_document."),
     detached: bool = typer.Option(False, "--detached", help="Record metadata without copying the payload into the package."),
+    scene: Optional[str] = typer.Option(
+        None,
+        "--scene",
+        help="Scene ID to link when adding a rendered panel. Recommended for multi-scene packages.",
+    ),
 ) -> None:
     """Add a local file to a package and compute its fixity metadata."""
 
@@ -551,8 +581,18 @@ def add_artifact(
                 f"{windows_path_hint(path)}"
             )
         pkg = load_package(package)
-        artifact = pkg.add_artifact(path, role=role, detached=detached)
+        artifact = pkg.add_artifact(path, role=role, detached=detached, scene_id=scene)
         typer.echo(f"Added {artifact.id} as {artifact.role.value}")
+        if artifact.role.value == "render_image" and len(pkg.semantic_layer.scenes) > 1 and scene is None:
+            scene_ids = ", ".join(item.id for item in pkg.semantic_layer.scenes)
+            typer.echo(
+                "This package has multiple scenes, so ClaimTrace did not guess which scene matches the panel. "
+                f"Add it again with --scene <id>, or set scenes[].render_artifact_ids in answers.yml. Scene IDs: {scene_ids}"
+            )
+        typer.echo(
+            "If this file supports the figure claim, link it under evidence in answers.yml, "
+            "then check and apply that answers file."
+        )
     except Exception as exc:
         _handle_error(exc)
 
@@ -644,7 +684,9 @@ def schema(
         data = validation_report_schema() if report else semantic_layer_schema()
         if out:
             write_json(out, data)
-        typer.echo(json.dumps(data, indent=2))
+            typer.echo(f"Wrote schema: {out}")
+        else:
+            typer.echo(json.dumps(data, indent=2))
     except Exception as exc:
         _handle_error(exc)
 
@@ -1243,7 +1285,14 @@ def _set_json_pointer(data: Any, pointer: str, value: Any) -> None:
 
 def _parse_value(value: str) -> Any:
     try:
-        return json.loads(value)
+        return ensure_finite(
+            json.loads(
+                value,
+                parse_constant=lambda token: (_ for _ in ()).throw(
+                    ValueError(f"Non-finite numeric value {token} is not valid JSON.")
+                ),
+            )
+        )
     except json.JSONDecodeError:
         return value
 
@@ -1268,9 +1317,19 @@ def _report_markdown(report: dict[str, Any]) -> str:
     findings = report.get("findings", [])
     if findings:
         for item in findings:
-            lines.append(f"- **{item['severity']} {item['rule_id']}**: {item['message']}")
+            lines.append(
+                f"- **{item['status']} {item['severity']} {item['rule_id']}**: {item['message']}"
+            )
     else:
         lines.append("- No required updates found.")
+    waivers = report.get("waiver_list", [])
+    if waivers:
+        lines.extend(["", "## Waiver Records", ""])
+        for waiver in waivers:
+            lines.append(
+                f"- `{waiver.get('rule_id', 'unknown')}` by {waiver.get('reviewer', 'unknown')}: "
+                f"{waiver.get('reason', 'No reason recorded.')}"
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -1289,11 +1348,12 @@ def _report_text(report: dict[str, Any], package: Path | str = "<package>") -> s
         lines = [
             f"pass: {mode} check is ready.",
             "No required updates found.",
-            "Package checks passed for traceability, packaging, paths and required author confirmations.",
+            "The package passed ClaimTrace's configured blocking checks for traceability, packaging and paths.",
             "Tool-suggested visual meanings remain suggestions unless the author confirms them in answers.yml.",
             _validation_summary_line(report),
             f"Next: claimtrace export {_quoted_path(package)} --mode {mode} --out {_quoted_path(zip_path)}",
         ]
+        lines.extend(_waiver_text_lines(report))
         return "\n".join(lines)
     if required:
         lines = [
@@ -1333,7 +1393,29 @@ def _report_text(report: dict[str, Any], package: Path | str = "<package>") -> s
                 f"{_quoted_path(package)} --answers {_quoted_path(_answers_path_for(Path(package)))}",
             ]
         )
+    lines.extend(_waiver_text_lines(report))
     return "\n".join(lines)
+
+
+def _waiver_text_lines(report: dict[str, Any]) -> list[str]:
+    waivers = report.get("waiver_list", [])
+    if not waivers:
+        return []
+    waived_findings = sum(
+        1 for item in report.get("findings", []) if item.get("status") == "WAIVED"
+    )
+    lines = [
+        "",
+        f"Waiver records: {len(waivers)}; findings waived in this check: {waived_findings}. "
+        "Review the records before relying on this result.",
+    ]
+    for waiver in waivers[:5]:
+        anchor = waiver.get("anchor_id") or waiver.get("scope", "unknown scope")
+        lines.append(
+            f"- {waiver.get('rule_id', 'unknown')} at {anchor}, reviewed by "
+            f"{waiver.get('reviewer', 'unknown')}: {waiver.get('reason', 'No reason recorded.')}"
+        )
+    return lines
 
 
 def _finding_action_lines(item: dict[str, Any]) -> list[str]:
@@ -1355,6 +1437,10 @@ def _finding_action_lines(item: dict[str, Any]) -> list[str]:
 
 def _friendly_finding_label(item: dict[str, Any]) -> str:
     rule_id = str(item.get("rule_id", ""))
+    if rule_id.startswith(("CLAIM.BASIC.EVIDENCE", "CLAIM.EVIDENCE")):
+        return "Add supporting file or note"
+    if rule_id.startswith("CLAIM.BASIC.SCENE"):
+        return "Link claim to scene"
     if rule_id.startswith("CLAIM.BASIC"):
         return "Add claim context"
     if rule_id.startswith("SECURITY"):
@@ -1374,7 +1460,13 @@ def _friendly_finding_label(item: dict[str, Any]) -> str:
 
 def _friendly_edit_hint(item: dict[str, Any]) -> str:
     rule_id = str(item.get("rule_id", ""))
-    if rule_id.startswith("CLAIM.BASIC"):
+    if rule_id.startswith("CLAIM.BASIC.EVIDENCE"):
+        return "answers.yml -> evidence"
+    if rule_id.startswith("CLAIM.BASIC.TEXT"):
+        return "answers.yml -> claim.claim_text"
+    if rule_id.startswith("CLAIM.BASIC.FIGURE"):
+        return "answers.yml -> claim.figure_ref"
+    if rule_id == "CLAIM.BASIC.MISSING":
         return "answers.yml -> claim.claim_text and claim.figure_ref"
     if rule_id.startswith("SCENE.VISUAL_ENCODING"):
         return "answers.yml -> scene_semantics_by_operation, using the operation id shown above"
@@ -1394,11 +1486,16 @@ def _friendly_example_lines(item: dict[str, Any]) -> list[str]:
             "Choose one in answers.yml: user_confirmed_meaning, user_declared_no_scientific_meaning, or claim_critical: false.",
             "Use `claimtrace inspect <package>` to see the operation id and the literal color/label observation.",
         ]
-    if rule_id.startswith("CLAIM.BASIC"):
+    if rule_id.startswith(("CLAIM.BASIC.TEXT", "CLAIM.BASIC.FIGURE")) or rule_id == "CLAIM.BASIC.MISSING":
         return [
             "Edit the package's answers.yml, then fill claim.claim_text and claim.figure_ref."
         ]
-    if rule_id.startswith("CLAIM.EVIDENCE") or rule_id.startswith("CLAIM.SIMPLE") or "LIGAND" in rule_id:
+    if (
+        rule_id.startswith("CLAIM.BASIC.EVIDENCE")
+        or rule_id.startswith("CLAIM.EVIDENCE")
+        or rule_id.startswith("CLAIM.SIMPLE")
+        or "LIGAND" in rule_id
+    ):
         return [
             "Attach the relevant file with `claimtrace add-artifact`, or reference it from evidence.source_artifact_paths in answers.yml."
         ]
@@ -1533,10 +1630,15 @@ def _handle_error(exc: Exception) -> None:
         package = str(exc).split(":", 1)[-1].strip() or "<package>"
         typer.echo(f"No ClaimTrace package found at {package}.", err=True)
         typer.echo("A ClaimTrace package directory contains semantic_layer.json.", err=True)
-        suggested_out = "scene-package" if package in {".", "<package>"} else package
+        package_path = Path(package)
+        is_scene_file = package_path.suffix.lower() in NATIVE_SCENE_SUFFIXES and package_path.is_file()
+        if is_scene_file:
+            typer.echo("That path is a supported scene file, not a package directory.", err=True)
+        suggested_scene = package if is_scene_file else "<scene-file>"
+        suggested_out = "scene-package" if package in {".", "<package>"} or is_scene_file else package
         typer.echo(
             "Next: check the package path, or create one with claimtrace init "
-            f'{_quoted_path("<scene-file>")} --out {_quoted_path(suggested_out)}. '
+            f"{_quoted_path(suggested_scene)} --out {_quoted_path(suggested_out)}. "
             "Supported scenes: .pml, .cxc, .mvsj, .mvsx.",
             err=True,
         )
