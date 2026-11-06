@@ -1,0 +1,647 @@
+[
+  {
+    "case": "f1-b1",
+    "article_panel": "Figure 1B1",
+    "title": "Adenylate kinase pocket views",
+    "source": "RCSB PDB 1AKE, chain A, ligand AP5.",
+    "source_url": "https://www.rcsb.org/structure/1AKE",
+    "scope": "Experimental coordinates; article-authored PyMOL scenes, native sessions and rendered views.",
+    "files": [
+      {
+        "name": "1_1_occluded_ligand.pml",
+        "kind": "scene_script",
+        "note": "Author-prepared PyMOL scene script for adenylate kinase and AP5 in PDB 1AKE."
+      },
+      {
+        "name": "1_2_buried_pocket_surface.pml",
+        "kind": "scene_script",
+        "note": "Author-prepared PyMOL scene script for adenylate kinase and AP5 in PDB 1AKE."
+      },
+      {
+        "name": "1_1_occluded_ligand.png",
+        "kind": "rendered_view",
+        "note": "Author-rendered molecular view of adenylate kinase and AP5 in PDB 1AKE."
+      },
+      {
+        "name": "1_2_buried_pocket_surface.png",
+        "kind": "rendered_view",
+        "note": "Author-rendered molecular view of adenylate kinase and AP5 in PDB 1AKE."
+      },
+      {
+        "name": "1_1_occluded_ligand.pse",
+        "kind": "native_session",
+        "note": "Author-saved PyMOL session for adenylate kinase and AP5 in PDB 1AKE."
+      },
+      {
+        "name": "1_2_buried_pocket_surface.pse",
+        "kind": "native_session",
+        "note": "Author-saved PyMOL session for adenylate kinase and AP5 in PDB 1AKE."
+      },
+      {
+        "name": "pdb_00001ake.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 1AKE, in compressed PDBx/mmCIF format."
+      }
+    ]
+  },
+  {
+    "case": "f1-b5",
+    "article_panel": "Figure 1B5",
+    "title": "Adenylate kinase domain context",
+    "source": "RCSB PDB 1AKE, chain A, ligand AP5.",
+    "source_url": "https://www.rcsb.org/structure/1AKE",
+    "scope": "Experimental coordinates; article-authored overall view, native session and source notes. Domain ranges are recorded with the tutorial interpretation.",
+    "files": [
+      {
+        "name": "5_1_overall_structure.pml",
+        "kind": "scene_script",
+        "note": "Author-prepared PyMOL scene script for adenylate kinase domains in PDB 1AKE."
+      },
+      {
+        "name": "5_1_overall_structure.png",
+        "kind": "rendered_view",
+        "note": "Author-rendered molecular view of adenylate kinase domains in PDB 1AKE."
+      },
+      {
+        "name": "5_1_overall_structure.pse",
+        "kind": "native_session",
+        "note": "Author-saved PyMOL session for adenylate kinase domains in PDB 1AKE."
+      },
+      {
+        "name": "SOURCES.md",
+        "kind": "source_documentation",
+        "note": "Source accessions and selection criteria for the adenylate kinase examples."
+      },
+      {
+        "name": "pdb_00001ake.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 1AKE, in compressed PDBx/mmCIF format."
+      }
+    ]
+  },
+  {
+    "case": "f1-b6",
+    "article_panel": "Figure 1B6",
+    "title": "Alternate camera view",
+    "source": "RCSB PDB 1AKE, chain A, ligand AP5.",
+    "source_url": "https://www.rcsb.org/structure/1AKE",
+    "scope": "Experimental coordinates; article-authored alternate view, native session and contact summary; a tutorial-authored replay script loads the native session.",
+    "files": [
+      {
+        "name": "6_1_interaction_view_alternate.pml",
+        "kind": "scene_script",
+        "note": "Author-prepared PyMOL scene script for the alternate AP5 view in PDB 1AKE."
+      },
+      {
+        "name": "6_1_interaction_view_alternate.png",
+        "kind": "rendered_view",
+        "note": "Author-rendered molecular view of the alternate AP5 view in PDB 1AKE."
+      },
+      {
+        "name": "2_1_interaction_view_contacts.json",
+        "kind": "analysis_metadata",
+        "note": "Author-calculated contact summary for AP5 and adenylate kinase in PDB 1AKE."
+      },
+      {
+        "name": "6_1_interaction_view_alternate.pse",
+        "kind": "native_session",
+        "note": "Author-saved PyMOL session for the alternate AP5 view in PDB 1AKE."
+      },
+      {
+        "name": "pdb_00001ake.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 1AKE, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "replay-6_1_interaction_view_alternate.pml",
+        "kind": "tutorial_replay_script",
+        "note": "Tutorial-authored native-session loader. Run from the completed package root."
+      }
+    ]
+  },
+  {
+    "case": "f1-b2",
+    "article_panel": "Figure 1B2",
+    "title": "Adenylate kinase contacts",
+    "source": "RCSB PDB 1AKE, chain A, ligand AP5.",
+    "source_url": "https://www.rcsb.org/structure/1AKE",
+    "scope": "Experimental coordinates; article-authored contact tables, PyMOL scene and contact-map figure. The displayed map and full-protein pair table use different selections.",
+    "files": [
+      {
+        "name": "2_1_interaction_view.pml",
+        "kind": "scene_script",
+        "note": "Author-prepared PyMOL scene script for AP5 contacts in PDB 1AKE."
+      },
+      {
+        "name": "2_1_interaction_view.png",
+        "kind": "rendered_view",
+        "note": "Author-rendered molecular view of AP5 contacts in PDB 1AKE."
+      },
+      {
+        "name": "2_2_residue_contact_map.png",
+        "kind": "analysis_figure",
+        "note": "Author-generated residue contact-map figure for AP5 in PDB 1AKE."
+      },
+      {
+        "name": "2_1_interaction_view.pse",
+        "kind": "native_session",
+        "note": "Author-saved PyMOL session for AP5 contacts in PDB 1AKE."
+      },
+      {
+        "name": "2_2_contact_map_residues.csv",
+        "kind": "analysis_table",
+        "note": "Residue selections used in the author-generated PDB 1AKE contact map."
+      },
+      {
+        "name": "2_2_contact_map_pairs.csv",
+        "kind": "analysis_table",
+        "note": "Author-calculated residue contact pairs for PDB 1AKE; the displayed map uses a selected subset."
+      },
+      {
+        "name": "2_1_interaction_view_contacts.json",
+        "kind": "analysis_metadata",
+        "note": "Author-calculated contact summary for AP5 and adenylate kinase in PDB 1AKE."
+      },
+      {
+        "name": "pdb_00001ake.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 1AKE, in compressed PDBx/mmCIF format."
+      }
+    ]
+  },
+  {
+    "case": "f3-a",
+    "article_panel": "Figure 4A",
+    "title": "BACE1 pocket waters",
+    "source": "RCSB PDB 3UQX and the 20-entry BACE1 selection recorded in bace1_selected_structures.csv.",
+    "source_url": "https://www.rcsb.org/structure/3UQX",
+    "scope": "Experimental reference coordinates; article-authored water clustering, alignment and geometric bridge-proxy tables; three recorded visual states.",
+    "files": [
+      {
+        "name": "3UQX.pdb",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 3UQX."
+      },
+      {
+        "name": "alignment_metadata.csv",
+        "kind": "analysis_metadata",
+        "note": "Author-recorded structural alignments for the BACE1 coordinate set listed in bace1_selected_structures.csv."
+      },
+      {
+        "name": "bace1_selected_structures.csv",
+        "kind": "source_catalog",
+        "note": "PDB accessions and selection information for the BACE1 water comparison."
+      },
+      {
+        "name": "case01_real_a1_all_waters.pml",
+        "kind": "scene_script",
+        "note": "Author-prepared PyMOL scene script for BACE1 pocket waters in PDB 3UQX."
+      },
+      {
+        "name": "case01_real_a1_all_waters.png",
+        "kind": "rendered_view",
+        "note": "Author-rendered molecular view of BACE1 pocket waters in PDB 3UQX."
+      },
+      {
+        "name": "case01_real_a1_all_waters.pse",
+        "kind": "native_session",
+        "note": "Author-saved PyMOL session for BACE1 pocket waters in PDB 3UQX."
+      },
+      {
+        "name": "case01_real_a2_retained_waters.pml",
+        "kind": "scene_script",
+        "note": "Author-prepared PyMOL scene script for BACE1 pocket waters in PDB 3UQX."
+      },
+      {
+        "name": "case01_real_a2_retained_waters.png",
+        "kind": "rendered_view",
+        "note": "Author-rendered molecular view of BACE1 pocket waters in PDB 3UQX."
+      },
+      {
+        "name": "case01_real_a2_retained_waters.pse",
+        "kind": "native_session",
+        "note": "Author-saved PyMOL session for BACE1 pocket waters in PDB 3UQX."
+      },
+      {
+        "name": "case01_real_a3_waters_removed.pml",
+        "kind": "scene_script",
+        "note": "Author-prepared PyMOL scene script for BACE1 pocket waters in PDB 3UQX."
+      },
+      {
+        "name": "case01_real_a3_waters_removed.png",
+        "kind": "rendered_view",
+        "note": "Author-rendered molecular view of BACE1 pocket waters in PDB 3UQX."
+      },
+      {
+        "name": "case01_real_a3_waters_removed.pse",
+        "kind": "native_session",
+        "note": "Author-saved PyMOL session for BACE1 pocket waters in PDB 3UQX."
+      },
+      {
+        "name": "water_evidence_summary.json",
+        "kind": "analysis_metadata",
+        "note": "Author-derived summary of BACE1 water clusters, retained waters and geometric bridge proxies."
+      },
+      {
+        "name": "water_evidence_table.csv",
+        "kind": "analysis_table",
+        "note": "Author-derived BACE1 water positions, cluster assignments and geometric bridge-proxy records."
+      }
+    ]
+  },
+  {
+    "case": "f3-c",
+    "article_panel": "Figure 4C",
+    "title": "Close contacts in a docking pose",
+    "source": "A Multi-Paradigm Benchmark of Molecular Docking, Zenodo 19560204; complex 7xbn__1__1.A__1.C_1.D, GNINA rank 3.",
+    "source_url": "https://zenodo.org/records/19560204",
+    "scope": "Supplied GNINA SDF pose and benchmark receptor PDBQT; article-authored selected-contact table, scenes and figure. PoseBusters supplies methodological context for the recorded validity findings.",
+    "files": [
+      {
+        "name": "case03_real_validity_failure_7xbn_rank3.pml",
+        "kind": "scene_script",
+        "note": "Author-prepared PyMOL scene script for GNINA rank 3 of complex 7xbn__1__1.A__1.C_1.D."
+      },
+      {
+        "name": "case03_real_validity_failure_7xbn_rank3.png",
+        "kind": "rendered_view",
+        "note": "Author-rendered molecular view of GNINA rank 3 of complex 7xbn__1__1.A__1.C_1.D."
+      },
+      {
+        "name": "case03_real_validity_failure_7xbn_rank3.png.metadata.json",
+        "kind": "figure_metadata",
+        "note": "Figure-generation and source metadata for GNINA rank 3 of complex 7xbn__1__1.A__1.C_1.D."
+      },
+      {
+        "name": "case03_real_validity_failure_7xbn_rank3.pse",
+        "kind": "native_session",
+        "note": "Author-saved PyMOL session for GNINA rank 3 of complex 7xbn__1__1.A__1.C_1.D."
+      },
+      {
+        "name": "case03_selected_close_contacts.csv",
+        "kind": "analysis_table",
+        "note": "Author-calculated short-contact distances and atom identities for GNINA rank 3 of complex 7xbn__1__1.A__1.C_1.D."
+      },
+      {
+        "name": "protein.pdbqt",
+        "kind": "receptor_structure",
+        "note": "Receptor PDBQT for complex 7xbn__1__1.A__1.C_1.D from the Multi-Paradigm docking benchmark, Zenodo 19560204. The REMARK header uses a portable source label; coordinate records retain the supplied values."
+      },
+      {
+        "name": "rank3_score0.63.sdf",
+        "kind": "docking_pose",
+        "note": "Supplied GNINA rank 3 pose for complex 7xbn__1__1.A__1.C_1.D from the Multi-Paradigm docking benchmark, Zenodo 19560204."
+      }
+    ]
+  },
+  {
+    "case": "f3-d",
+    "article_panel": "Figure 4D",
+    "title": "D3 receptor distance and setup",
+    "source": "RCSB PDB 3PBL, eticlopride; GPCRmd dynamic 106 setup record.",
+    "source_url": "https://www.gpcrmd.org/dynadb/dynamics/id/106/",
+    "scope": "Experimental coordinates; article-authored Asp110 distance view and native session; GPCRmd setup and system-count tables.",
+    "files": [
+      {
+        "name": "3PBL.pdb",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 3PBL."
+      },
+      {
+        "name": "case04_real_3pbl_eticlopride_asp110.pml",
+        "kind": "scene_script",
+        "note": "Author-prepared PyMOL scene script for Asp110 and eticlopride in PDB 3PBL."
+      },
+      {
+        "name": "case04_real_3pbl_eticlopride_asp110.png",
+        "kind": "rendered_view",
+        "note": "Author-rendered molecular view of Asp110 and eticlopride in PDB 3PBL."
+      },
+      {
+        "name": "case04_real_3pbl_eticlopride_asp110.pse",
+        "kind": "native_session",
+        "note": "Author-saved PyMOL session for Asp110 and eticlopride in PDB 3PBL."
+      },
+      {
+        "name": "gpcrmd_dyn106_setup_metadata.csv",
+        "kind": "simulation_metadata",
+        "note": "Simulation setup information for GPCRmd dynamic 106, separate from the PDB 3PBL crystal structure."
+      },
+      {
+        "name": "gpcrmd_dyn106_system_counts.csv",
+        "kind": "simulation_metadata",
+        "note": "System composition for GPCRmd dynamic 106, with residue and atom counts."
+      }
+    ]
+  },
+  {
+    "case": "f1-b3",
+    "article_panel": "Figure 1B3",
+    "title": "Confidence and backbone geometry",
+    "source": "AlphaFold DB AF-P69441-F1, model v6; UniProt P69441.",
+    "source_url": "https://alphafold.ebi.ac.uk/files/AF-P69441-F1-model_v6.cif",
+    "scope": "Predicted coordinates; article-authored pLDDT view and cctbx/MolProbity Ramachandran results. The geometry table covers the AlphaFold model.",
+    "files": [
+      {
+        "name": "3_1_alphafold_plddt.pml",
+        "kind": "scene_script",
+        "note": "Author-prepared PyMOL scene script for AlphaFold model AF-P69441-F1 v6."
+      },
+      {
+        "name": "3_1_alphafold_plddt.png",
+        "kind": "rendered_view",
+        "note": "Author-rendered molecular view of AlphaFold model AF-P69441-F1 v6."
+      },
+      {
+        "name": "3_2_ramachandran_general.png",
+        "kind": "analysis_figure",
+        "note": "Author-generated Ramachandran plot from cctbx/MolProbity analysis of AlphaFold model AF-P69441-F1 v6."
+      },
+      {
+        "name": "3_2_ramachandran.csv",
+        "kind": "analysis_table",
+        "note": "Residue-level backbone geometry results from cctbx/MolProbity analysis of AlphaFold model AF-P69441-F1 v6."
+      },
+      {
+        "name": "3_1_alphafold_plddt.pse",
+        "kind": "native_session",
+        "note": "Author-saved PyMOL session for AlphaFold model AF-P69441-F1 v6."
+      },
+      {
+        "name": "3_2_ramachandran.json",
+        "kind": "analysis_metadata",
+        "note": "Backbone geometry results and summary from cctbx/MolProbity analysis of AlphaFold model AF-P69441-F1 v6."
+      },
+      {
+        "name": "AF-P69441-F1-model_v6.cif",
+        "kind": "predicted_coordinates",
+        "note": "AlphaFold DB predicted coordinates for UniProt P69441, model AF-P69441-F1 v6."
+      }
+    ]
+  },
+  {
+    "case": "f1-b4",
+    "article_panel": "Figure 1B4",
+    "title": "AP5 structural ensemble",
+    "source": "Sixteen RCSB PDB structures selected using UniProt P69441 and chemical component AP5.",
+    "source_url": "https://www.rcsb.org/",
+    "scope": "Experimental coordinates; article-authored alignment, PCA, assignments, representatives and figures. The 30 selected AP5 instances support a descriptive structural comparison.",
+    "files": [
+      {
+        "name": "4_1_ap5_conformational_landscape.png",
+        "kind": "analysis_figure",
+        "note": "Author-generated landscape for the aligned AP5 structural ensemble."
+      },
+      {
+        "name": "4_2_ap5_representative_states.png",
+        "kind": "analysis_figure",
+        "note": "Author-generated comparison of representative AP5 conformations from the selected PDB structures."
+      },
+      {
+        "name": "4_1_ap5_conformational_landscape.csv",
+        "kind": "analysis_table",
+        "note": "Author-calculated principal-component coordinates, density estimates and basin assignments for the AP5 landscape."
+      },
+      {
+        "name": "B4_PROVENANCE.json",
+        "kind": "analysis_metadata",
+        "note": "Selection criteria, common atoms, alignment, representation and principal-component analysis settings for the AP5 ensemble."
+      },
+      {
+        "name": "4_1_ap5_conformational_landscape.json",
+        "kind": "analysis_metadata",
+        "note": "Author-recorded analysis metadata for the AP5 conformational landscape."
+      },
+      {
+        "name": "ap5_instance_assignments.csv",
+        "kind": "analysis_table",
+        "note": "Author-derived AP5 instance assignments, principal-component coordinates and alignment results, with PDB and chain identities."
+      },
+      {
+        "name": "ap5_pca_explained_variance.csv",
+        "kind": "analysis_table",
+        "note": "Explained-variance ratios from the principal-component analysis of aligned AP5 coordinates."
+      },
+      {
+        "name": "ap5_representative_states.csv",
+        "kind": "analysis_table",
+        "note": "Author-selected representative AP5 instances with cluster populations and PDB identities."
+      },
+      {
+        "name": "common_ap5_atom_names.json",
+        "kind": "analysis_metadata",
+        "note": "Shared AP5 heavy-atom names used to compare the selected structural instances."
+      },
+      {
+        "name": "pdb_00001ake.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 1AKE, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00001e4v.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 1E4V, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00001e4y.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 1E4Y, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00003hpq.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 3HPQ, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00003hpr.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 3HPR, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00004x8l.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 4X8L, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00004x8o.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 4X8O, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00005eje.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 5EJE, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00006ham.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 6HAM, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00006hap.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 6HAP, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00008bqf.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 8BQF, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00008pvw.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 8PVW, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00008q2b.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 8Q2B, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00009l14.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 9L14, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00009r6u.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 9R6U, in compressed PDBx/mmCIF format."
+      },
+      {
+        "name": "pdb_00009r71.cif.gz",
+        "kind": "experimental_coordinates",
+        "note": "Experimental coordinates from RCSB PDB 9R71, in compressed PDBx/mmCIF format."
+      }
+    ]
+  },
+  {
+    "case": "f3-b",
+    "article_panel": "Figure 4B",
+    "title": "GNINA pose comparison",
+    "source": "A Multi-Paradigm Benchmark of Molecular Docking, Zenodo 19560204; complex 7r26__1__1.A__1.B.",
+    "source_url": "https://zenodo.org/records/19560204",
+    "scope": "Five supplied GNINA SDF poses and the benchmark receptor PDBQT; article-authored comparison table, scenes and figure. Reference RMSDs are supplied benchmark results.",
+    "files": [
+      {
+        "name": "case02_pose_evidence_augmented.csv",
+        "kind": "analysis_table",
+        "note": "Author-prepared comparison combining supplied GNINA scores and reference RMSDs with contact and pocket-occupancy summaries for complex 7r26__1__1.A__1.B."
+      },
+      {
+        "name": "case02_real_gnina_pose_ensemble_7r26.pml",
+        "kind": "scene_script",
+        "note": "Author-prepared PyMOL scene script for the five GNINA poses of complex 7r26__1__1.A__1.B."
+      },
+      {
+        "name": "case02_real_gnina_pose_ensemble_7r26.png",
+        "kind": "rendered_view",
+        "note": "Author-rendered molecular view of the five GNINA poses of complex 7r26__1__1.A__1.B."
+      },
+      {
+        "name": "case02_real_gnina_pose_ensemble_7r26.png.metadata.json",
+        "kind": "figure_metadata",
+        "note": "Figure-generation and source metadata for the five GNINA poses of complex 7r26__1__1.A__1.B."
+      },
+      {
+        "name": "case02_real_gnina_pose_ensemble_7r26.pse",
+        "kind": "native_session",
+        "note": "Author-saved PyMOL session for the five GNINA poses of complex 7r26__1__1.A__1.B."
+      },
+      {
+        "name": "protein.pdbqt",
+        "kind": "receptor_structure",
+        "note": "Receptor PDBQT for complex 7r26__1__1.A__1.B from the Multi-Paradigm docking benchmark, Zenodo 19560204. The REMARK header uses a portable source label; coordinate records retain the supplied values."
+      },
+      {
+        "name": "rank1_score1.00.sdf",
+        "kind": "docking_pose",
+        "note": "Supplied GNINA rank 1 pose for complex 7r26__1__1.A__1.B from the Multi-Paradigm docking benchmark, Zenodo 19560204."
+      },
+      {
+        "name": "rank2_score1.00.sdf",
+        "kind": "docking_pose",
+        "note": "Supplied GNINA rank 2 pose for complex 7r26__1__1.A__1.B from the Multi-Paradigm docking benchmark, Zenodo 19560204."
+      },
+      {
+        "name": "rank3_score0.91.sdf",
+        "kind": "docking_pose",
+        "note": "Supplied GNINA rank 3 pose for complex 7r26__1__1.A__1.B from the Multi-Paradigm docking benchmark, Zenodo 19560204."
+      },
+      {
+        "name": "rank4_score0.85.sdf",
+        "kind": "docking_pose",
+        "note": "Supplied GNINA rank 4 pose for complex 7r26__1__1.A__1.B from the Multi-Paradigm docking benchmark, Zenodo 19560204."
+      },
+      {
+        "name": "rank5_score0.82.sdf",
+        "kind": "docking_pose",
+        "note": "Supplied GNINA rank 5 pose for complex 7r26__1__1.A__1.B from the Multi-Paradigm docking benchmark, Zenodo 19560204."
+      }
+    ]
+  },
+  {
+    "case": "f3-e",
+    "article_panel": "Figure 4E",
+    "title": "ProLIF interaction events",
+    "source": "chemosim-lab/ProLIF-paper v1.0.0, Zenodo 4945869, repository revision 5d6d22e; 5-HT1B–ergotamine example.",
+    "source_url": "https://zenodo.org/records/4945869",
+    "scope": "Original precomputed Notebooks/pickles/ifp_df.pkl; article-authored event matrix, transition table and figure.",
+    "files": [
+      {
+        "name": "case05_real_prolif_event_matrix.csv",
+        "kind": "analysis_table",
+        "note": "Author-derived interaction-state matrix from the ProLIF-paper 5-HT1B–ergotamine fingerprints."
+      },
+      {
+        "name": "case05_real_prolif_event_transitions.csv",
+        "kind": "analysis_table",
+        "note": "Author-derived interaction transition events from the ProLIF-paper 5-HT1B–ergotamine fingerprints."
+      },
+      {
+        "name": "case05a_publication_prolif_event_map.png",
+        "kind": "analysis_figure",
+        "note": "Author-generated interaction-state and transition-event figure for the ProLIF-paper 5-HT1B–ergotamine example."
+      },
+      {
+        "name": "ifp_df.pkl",
+        "kind": "interaction_fingerprints",
+        "note": "Precomputed 5-HT1B–ergotamine interaction fingerprints from ProLIF-paper v1.0.0, Notebooks/pickles/ifp_df.pkl (repository revision 5d6d22e)."
+      }
+    ]
+  },
+  {
+    "case": "f3-f",
+    "article_panel": "Figure 4F",
+    "title": "D3 receptor replicate summary",
+    "source": "GPCRmd dynamic 106, dopamine D3 receptor–eticlopride.",
+    "source_url": "https://www.gpcrmd.org/dynadb/dynamics/id/106/",
+    "scope": "Article-authored summaries derived from three GPCRmd trajectories: distance, RMSD, interaction events, residue contacts and the summary figure.",
+    "files": [
+      {
+        "name": "case05b_publication_gpcrmd_d3r_event_summary.png",
+        "kind": "analysis_figure",
+        "note": "Author-generated distance, RMSD and contact comparison for three GPCRmd dynamic 106 replicates."
+      },
+      {
+        "name": "d3r_eticlopride_gpcrmd_events_combined.csv",
+        "kind": "analysis_table",
+        "note": "Author-calculated per-frame Asp110–eticlopride distances and ligand RMSDs for three GPCRmd dynamic 106 replicates."
+      },
+      {
+        "name": "d3r_eticlopride_gpcrmd_summary.csv",
+        "kind": "analysis_table",
+        "note": "Author-calculated replicate summaries of Asp110–eticlopride proximity, distance and ligand RMSD for GPCRmd dynamic 106."
+      },
+      {
+        "name": "d3r_eticlopride_residue_contact_summary.csv",
+        "kind": "analysis_table",
+        "note": "Author-calculated residue contact summaries and transition counts for GPCRmd dynamic 106."
+      },
+      {
+        "name": "d3r_eticlopride_residue_contacts_combined.csv",
+        "kind": "analysis_table",
+        "note": "Author-calculated time-resolved residue–ligand distances and contact states for GPCRmd dynamic 106."
+      }
+    ]
+  }
+]

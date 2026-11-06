@@ -15,7 +15,9 @@ def zip_directory(source: Path, output: Path, *, force: bool = False) -> Path:
         if not force:
             raise FileExistsError(f"Export output already exists: {output}")
         output.unlink()
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    with zipfile.ZipFile(
+        output, "w", compression=zipfile.ZIP_DEFLATED, strict_timestamps=False,
+    ) as archive:
         for path in sorted(safe_walk(source, include_directories=True)):
             relative = path.relative_to(source).as_posix()
             ensure_relative_path(relative)

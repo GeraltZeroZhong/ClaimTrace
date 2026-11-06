@@ -36,6 +36,8 @@ def ensure_relative_path(path: str | Path) -> str:
     for part in parts:
         if ":" in part:
             raise SecurityError(f"Colons and NTFS alternate-stream syntax are not allowed: {path}")
+        if any(char in '<>"|?*' for char in part):
+            raise SecurityError(f"Package paths must use Windows-compatible filename characters: {path}")
         if part.endswith((" ", ".")):
             raise SecurityError(f"Package path components cannot end in a space or dot: {path}")
         if part.split(".", 1)[0].casefold() in reserved:
@@ -61,7 +63,11 @@ def resolve_package_path(root: Path, relative_path: str | Path) -> Path:
 
 
 def ensure_no_dangerous_symlink(root: Path, path: Path) -> None:
-    root_resolved = root.resolve()
+    _ensure_no_dangerous_symlink(root.resolve(), path)
+
+
+def _ensure_no_dangerous_symlink(root_resolved: Path, path: Path) -> None:
+    """Check fresh path metadata against a root resolved by this traversal."""
     current = path
     while current != root_resolved and current != current.parent:
         if current.is_symlink():
@@ -81,22 +87,24 @@ def safe_walk(root: Path, *, include_directories: bool = False):
 
     for dirpath, dirnames, filenames in os.walk(root_resolved, onerror=raise_walk_error):
         dir_path = Path(dirpath)
-        ensure_no_dangerous_symlink(root_resolved, dir_path)
+        _ensure_no_dangerous_symlink(root_resolved, dir_path)
         for dirname in dirnames:
             path = dir_path / dirname
-            if path.is_symlink():
+            entry_mode = path.lstat().st_mode
+            if stat.S_ISLNK(entry_mode):
                 raise SecurityError(f"Symbolic links are not allowed in package trees: {path}")
-            if not stat.S_ISDIR(path.lstat().st_mode):
+            if not stat.S_ISDIR(entry_mode):
                 raise SecurityError(f"Only regular directories are allowed in package trees: {path}")
             ensure_relative_path(path.relative_to(root_resolved).as_posix())
             if include_directories:
                 yield path
         for filename in filenames:
             path = dir_path / filename
-            if path.is_symlink():
+            entry_mode = path.lstat().st_mode
+            if stat.S_ISLNK(entry_mode):
                 raise SecurityError(f"Symbolic links are not allowed in package trees: {path}")
-            if not stat.S_ISREG(path.lstat().st_mode):
+            if not stat.S_ISREG(entry_mode):
                 raise SecurityError(f"Only regular files are allowed in package trees: {path}")
-            ensure_no_dangerous_symlink(root_resolved, path)
+            _ensure_no_dangerous_symlink(root_resolved, path.parent)
             ensure_relative_path(path.relative_to(root_resolved).as_posix())
             yield path

@@ -146,6 +146,22 @@ def synchronize_resource_bindings(semantic: Any) -> None:
 
     for resource in getattr(semantic, "resource_references", []):
         if not resource_matches_artifact(semantic, resource.uri, resource_ref=resource):
+            # Removing or moving a resource record invalidates its old binding.
+            # Retain reviewed detached records: their known checksum can still
+            # document a resource verified outside the package.
+            if (
+                resource.uri_kind in {"relative", "local"}
+                and not resource_matching_artifacts(semantic, resource.uri, resource_ref=resource)
+            ):
+                resource.fixity_status = "unknown"
+                resource.fetch_status = "not_fetched"
+                location = getattr(resource, "source_location", None)
+                for native_ref in getattr(semantic, "native_references", []):
+                    if (
+                        _same_source_anchor(location, getattr(native_ref, "source_location", None))
+                        and native_ref.target_resolution_status == "resolved_against_artifact"
+                    ):
+                        native_ref.target_resolution_status = "expression_only"
             continue
         resource.fixity_status = "available"
         resource.fetch_status = "not_applicable"

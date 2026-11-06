@@ -1,0 +1,2446 @@
+{
+  "categories": [
+    [
+      "Describe molecular views",
+      "Link a figure to its structure, representation and saved camera.",
+      [
+        "f1-b1",
+        "f1-b5",
+        "f1-b6"
+      ]
+    ],
+    [
+      "Check contacts and distances",
+      "Connect a visual contact to atom identities, distance rules and measurements.",
+      [
+        "f1-b2",
+        "f3-a",
+        "f3-c",
+        "f3-d"
+      ]
+    ],
+    [
+      "Compare models and ensembles",
+      "Record the confidence, geometry, scores and sampling behind a comparison.",
+      [
+        "f1-b3",
+        "f1-b4",
+        "f3-b"
+      ]
+    ],
+    [
+      "Review trajectories",
+      "Record the selected interactions, frames and repeats behind a time-series figure.",
+      [
+        "f3-e",
+        "f3-f"
+      ]
+    ]
+  ],
+  "cases": [
+    {
+      "id": "f1-b1",
+      "title": "Pocket visibility",
+      "article": "Figure 1B1",
+      "category": "Describe molecular views",
+      "goal": "Link two pocket views to the same AP5 ligand and record the representation, selection and saved camera.",
+      "inputs": [
+        "1_1_occluded_ligand.pml",
+        "1_2_buried_pocket_surface.pml",
+        "1_1_occluded_ligand.png",
+        "1_2_buried_pocket_surface.png",
+        "1_1_occluded_ligand.pse",
+        "1_2_buried_pocket_surface.pse",
+        "pdb_00001ake.cif.gz"
+      ],
+      "steps": [
+        {
+          "title": "Import the example files",
+          "instruction": "Extract the input ZIP and read LAB_NOTES.txt beside the files/ folder. In ClaimTrace, click Choose files on the welcome page, or Start with files in an open package. Select all 7 files inside files/. Enter the package name below and click Create package.",
+          "fields": [
+            {
+              "label": "Package name",
+              "value": "Figure 1B1 - Pocket visibility"
+            }
+          ],
+          "expected": "The package opens in Prepare with 7 saved files and the figure visible.",
+          "screenshots": [
+            "images/f1-b1/01-01.png",
+            "images/f1-b1/01-02.png"
+          ],
+          "caption": "Select the original figure and source files, then name the package."
+        },
+        {
+          "title": "Write one figure statement",
+          "instruction": "Click Add claim. Enter the statement and figure label, choose Structure view, check both Linked scenes, and click Save claim.",
+          "fields": [
+            {
+              "label": "Figure statement",
+              "value": "Two views locate AP5 within the adenylate kinase pocket."
+            },
+            {
+              "label": "Figure label",
+              "value": "Figure 1B1"
+            },
+            {
+              "label": "Statement type",
+              "value": "Structure view"
+            },
+            {
+              "label": "Linked scenes",
+              "value": "1_1_occluded_ligand.pml; 1_2_buried_pocket_surface.pml"
+            }
+          ],
+          "expected": "The statement appears in the left claim list and the figure stays linked.",
+          "screenshots": [
+            "images/f1-b1/02-01.png",
+            "images/f1-b1/02-02.png"
+          ],
+          "caption": "The statement and figure label identify the claim linked to this view."
+        },
+        {
+          "title": "Choose the supporting files",
+          "instruction": "Click Add evidence. Choose the Evidence type and select the listed Source files. Continue in this form for the next step.",
+          "fields": [
+            {
+              "label": "Evidence type",
+              "value": "Figure or structure inspection"
+            },
+            {
+              "label": "Source files",
+              "value": "1_1_occluded_ligand.pml\n1_2_buried_pocket_surface.pml\n1_1_occluded_ligand.pse\n1_2_buried_pocket_surface.pse\npdb_00001ake.cif.gz"
+            }
+          ],
+          "expected": "The source counter shows 5 selected.",
+          "screenshots": [
+            "images/f1-b1/03-01.png"
+          ],
+          "caption": "Choose files that support this particular statement."
+        },
+        {
+          "title": "Record the finding and settings",
+          "instruction": "Enter the method under How was it checked? and the observation under What did you find? Open Analysis settings and complete Selections, cutoffs and sampling. Click Save evidence.",
+          "fields": [
+            {
+              "label": "How was it checked?",
+              "value": "Inspect the supplied pocket views, scene scripts and 1AKE coordinates."
+            },
+            {
+              "label": "What did you find?",
+              "value": "Both supplied views show 1AKE chain A and AP5. The surface view exposes the pocket around the ligand."
+            },
+            {
+              "label": "Selections, cutoffs and sampling",
+              "value": "Structure: PDB 1AKE, chain A; ligand: AP5. Pocket: whole residues with any atom within 4.2 angstrom of AP5."
+            }
+          ],
+          "expected": "The evidence record appears under Evidence & sources.",
+          "screenshots": [
+            "images/f1-b1/04-01.png"
+          ],
+          "caption": "The evidence form records the method, observation and analysis settings."
+        },
+        {
+          "title": "State the interpretation limit",
+          "instruction": "Click Add limitation. Enter the limitation and click Save limitation.",
+          "fields": [
+            {
+              "label": "What limits this conclusion?",
+              "value": "Pocket visibility depends on the representation and camera. Use the supplied PSE for the full saved view; the reduced PML records the structure and camera. Native-view replay remains pending."
+            }
+          ],
+          "expected": "Limitations shows 1 saved record.",
+          "screenshots": [
+            "images/f1-b1/05-01.png"
+          ],
+          "caption": "The limitation records what affects interpretation of the figure."
+        },
+        {
+          "title": "Review the short audit",
+          "instruction": "Click Review. Read the five rows of the Claim audit and confirm the evidence and limitation match the figure. Use the scene dropdown above the figure to choose 1_2_buried_pocket_surface.pml and inspect the second linked view.",
+          "fields": [],
+          "expected": "Both saved views are recorded; scene replay remains pending.",
+          "screenshots": [
+            "images/f1-b1/06-01.png",
+            "images/f1-b1/06-02.png"
+          ],
+          "caption": "Inspect the claim → visual evidence → provenance → uncertainty → reproducibility record."
+        },
+        {
+          "title": "Check the draft export",
+          "instruction": "Click Export. Keep Working draft selected and confirm Draft checks passed.",
+          "fields": [
+            {
+              "label": "Export purpose",
+              "value": "Working draft"
+            }
+          ],
+          "expected": "Download package · ZIP is enabled.",
+          "screenshots": [
+            "images/f1-b1/07-01.png"
+          ],
+          "caption": "Working draft includes the saved records and open questions."
+        },
+        {
+          "title": "Download the package",
+          "instruction": "Click Download package · ZIP. Check your browser’s downloads for claimtrace-review.zip, then save it with your figure. The ZIP contains the source files, claim record and recipient instructions.",
+          "fields": [],
+          "expected": "The page confirms: Export checks passed. Your browser will download the package.",
+          "screenshots": [
+            "images/f1-b1/08-01.png"
+          ],
+          "caption": "The downloaded ZIP contains the entered claim, evidence, limitation, and original input files."
+        }
+      ],
+      "outcome": "A downloaded Working draft ZIP containing 1 claim, 1 evidence record, 1 limitation, and 7 source files.",
+      "open_questions": [
+        "Reopen the original PSE files in PyMOL to check scene replay.",
+        "Name the pocket selections and link them to their source coordinates for the recipient."
+      ],
+      "download_zip": "downloads/f1-b1-completed.zip",
+      "input_zip": "downloads/f1-b1-inputs.zip"
+    },
+    {
+      "id": "f1-b5",
+      "title": "Local to global context",
+      "article": "Figure 1B5",
+      "category": "Describe molecular views",
+      "goal": "Locate AP5 within an overall structure and record the residue ranges highlighted around it.",
+      "inputs": [
+        "5_1_overall_structure.pml",
+        "5_1_overall_structure.png",
+        "5_1_overall_structure.pse",
+        "SOURCES.md",
+        "pdb_00001ake.cif.gz"
+      ],
+      "steps": [
+        {
+          "title": "Import the example files",
+          "instruction": "Extract the input ZIP and read LAB_NOTES.txt beside the files/ folder. In ClaimTrace, click Choose files on the welcome page, or Start with files in an open package. Select all 5 files inside files/. Enter the package name below and click Create package.",
+          "fields": [
+            {
+              "label": "Package name",
+              "value": "Figure 1B5 - Local to global context"
+            }
+          ],
+          "expected": "The package opens in Prepare with 5 saved files and the figure visible.",
+          "screenshots": [
+            "images/f1-b5/01-01.png",
+            "images/f1-b5/01-02.png"
+          ],
+          "caption": "Select the original figure and source files, then name the package."
+        },
+        {
+          "title": "Write one figure statement",
+          "instruction": "Click Add claim. Enter the statement and figure label, choose the statement type, and click Save claim.",
+          "fields": [
+            {
+              "label": "Figure statement",
+              "value": "The overall adenylate kinase view places AP5 between the highlighted domains."
+            },
+            {
+              "label": "Figure label",
+              "value": "Figure 1B5"
+            },
+            {
+              "label": "Statement type",
+              "value": "Structure view"
+            }
+          ],
+          "expected": "The statement appears in the left claim list and the figure stays linked.",
+          "screenshots": [
+            "images/f1-b5/02-01.png",
+            "images/f1-b5/02-02.png"
+          ],
+          "caption": "The statement and figure label identify the claim linked to this view."
+        },
+        {
+          "title": "Choose the supporting files",
+          "instruction": "Click Add evidence. Choose the Evidence type and select the listed Source files. Continue in this form for the next step.",
+          "fields": [
+            {
+              "label": "Evidence type",
+              "value": "Figure or structure inspection"
+            },
+            {
+              "label": "Source files",
+              "value": "5_1_overall_structure.pml\n5_1_overall_structure.pse\npdb_00001ake.cif.gz\nSOURCES.md"
+            }
+          ],
+          "expected": "The source counter shows 4 selected.",
+          "screenshots": [
+            "images/f1-b5/03-01.png"
+          ],
+          "caption": "Choose files that support this particular statement."
+        },
+        {
+          "title": "Record the finding and settings",
+          "instruction": "Enter the method under How was it checked? and the observation under What did you find? Open Analysis settings and complete Selections, cutoffs and sampling. Click Save evidence.",
+          "fields": [
+            {
+              "label": "How was it checked?",
+              "value": "Inspect the supplied overall view, saved session and 1AKE structure."
+            },
+            {
+              "label": "What did you find?",
+              "value": "The saved 1AKE view shows chain A with AP5 and highlighted residue ranges 30-59 and 122-159. The overall view places AP5 between these domains."
+            },
+            {
+              "label": "Selections, cutoffs and sampling",
+              "value": "Structure: PDB 1AKE, chain A. Blue residues: 30-59. Green residues: 122-159. View: saved overall structure."
+            }
+          ],
+          "expected": "The evidence record appears under Evidence & sources.",
+          "screenshots": [
+            "images/f1-b5/04-01.png"
+          ],
+          "caption": "The evidence form records the method, observation and analysis settings."
+        },
+        {
+          "title": "State the interpretation limit",
+          "instruction": "Click Add limitation. Enter the limitation and click Save limitation.",
+          "fields": [
+            {
+              "label": "What limits this conclusion?",
+              "value": "This crystal structure supplies static spatial context. The original PSE preserves the highlighted view; record the residue ranges alongside the reduced PML. Native-view replay remains pending."
+            }
+          ],
+          "expected": "Limitations shows 1 saved record.",
+          "screenshots": [
+            "images/f1-b5/05-01.png"
+          ],
+          "caption": "The limitation records what affects interpretation of the figure."
+        },
+        {
+          "title": "Review the short audit",
+          "instruction": "Click Review. Read the five rows of the Claim audit and confirm the evidence and limitation match the figure.",
+          "fields": [],
+          "expected": "Claim, visual evidence, provenance, uncertainty, and reproducibility appear together.",
+          "screenshots": [
+            "images/f1-b5/06-01.png"
+          ],
+          "caption": "Inspect the claim → visual evidence → provenance → uncertainty → reproducibility record."
+        },
+        {
+          "title": "Check the draft export",
+          "instruction": "Click Export. Keep Working draft selected and confirm Draft checks passed.",
+          "fields": [
+            {
+              "label": "Export purpose",
+              "value": "Working draft"
+            }
+          ],
+          "expected": "Download package · ZIP is enabled.",
+          "screenshots": [
+            "images/f1-b5/07-01.png"
+          ],
+          "caption": "Working draft includes the saved records and open questions."
+        },
+        {
+          "title": "Download the package",
+          "instruction": "Click Download package · ZIP. Check your browser’s downloads for claimtrace-review.zip, then save it with your figure. The ZIP contains the source files, claim record and recipient instructions.",
+          "fields": [],
+          "expected": "The page confirms: Export checks passed. Your browser will download the package.",
+          "screenshots": [
+            "images/f1-b5/08-01.png"
+          ],
+          "caption": "The downloaded ZIP contains the entered claim, evidence, limitation, and original input files."
+        }
+      ],
+      "outcome": "A downloaded Working draft ZIP containing 1 claim, 1 evidence record, 1 limitation, and 5 source files.",
+      "open_questions": [
+        "Open the original PSE in PyMOL and record the names and residue ranges of its highlighted selections.",
+        "Keep the interpretation scoped to static spatial context."
+      ],
+      "download_zip": "downloads/f1-b5-completed.zip",
+      "input_zip": "downloads/f1-b5-inputs.zip"
+    },
+    {
+      "title": "Preserve an alternate AP5 interaction view",
+      "article": "Figure 1B6",
+      "category": "Describe molecular views",
+      "goal": "Link an alternate AP5 pocket view to its saved session and record what remains to check in PyMOL.",
+      "open_questions": [
+        "Open the supplied PSE in PyMOL and record the result of that replay check.",
+        "Run the supplied replay script from the completed package root."
+      ],
+      "id": "f1-b6",
+      "inputs": [
+        "6_1_interaction_view_alternate.pml",
+        "6_1_interaction_view_alternate.png",
+        "2_1_interaction_view_contacts.json",
+        "6_1_interaction_view_alternate.pse",
+        "pdb_00001ake.cif.gz",
+        "replay-6_1_interaction_view_alternate.pml"
+      ],
+      "steps": [
+        {
+          "title": "Create the package",
+          "instruction": "Extract the input ZIP and read LAB_NOTES.txt beside the files/ folder. In ClaimTrace, click Choose files on the welcome page, or Start with files in an open package. Select all 6 files inside files/. Enter the package name below and click Create package.",
+          "fields": [
+            {
+              "label": "Package name",
+              "value": "Figure 1B6 - Alternate AP5 view"
+            }
+          ],
+          "expected": "The package opens with 6 files.",
+          "screenshots": [
+            "images/f1-b6/01-01.png"
+          ],
+          "caption": "Figure 1B6 input files and package name."
+        },
+        {
+          "title": "Write the figure statement",
+          "instruction": "Click Add claim. Enter the statement and figure label. Keep 6_1_interaction_view_alternate.pml selected under Linked scenes. Click Save claim.",
+          "fields": [
+            {
+              "label": "Figure statement",
+              "value": "An alternate camera presents the same AP5 interaction scene."
+            },
+            {
+              "label": "Figure label",
+              "value": "Figure 1B6"
+            },
+            {
+              "label": "Statement type",
+              "value": "Structure view"
+            },
+            {
+              "label": "Linked scenes",
+              "value": "6_1_interaction_view_alternate.pml"
+            }
+          ],
+          "expected": "The statement appears in the Claims sidebar.",
+          "screenshots": [
+            "images/f1-b6/02-01.png"
+          ],
+          "caption": "A single statement with its figure label and statement type."
+        },
+        {
+          "title": "Choose the evidence and its sources",
+          "instruction": "Click Add evidence. Choose the evidence type and select the Source files listed below. Scroll within the file list to find each source. Enter the method and observation.",
+          "fields": [
+            {
+              "label": "Evidence type",
+              "value": "Figure or structure inspection"
+            },
+            {
+              "label": "Source files",
+              "value": "6_1_interaction_view_alternate.pml\nreplay-6_1_interaction_view_alternate.pml\n6_1_interaction_view_alternate.png\n6_1_interaction_view_alternate.pse\npdb_00001ake.cif.gz"
+            },
+            {
+              "label": "How was it checked?",
+              "value": "Inspect the supplied alternate view, camera record and native session reference."
+            },
+            {
+              "label": "What did you find?",
+              "value": "The supplied alternate view retains AP5 and its pocket context. The scene script records the camera, and the replay script points to the supplied native PSE."
+            }
+          ],
+          "expected": "5 source files are selected.",
+          "screenshots": [
+            "images/f1-b6/03-01.png"
+          ],
+          "caption": "The selected source files and the recorded check support the claim."
+        },
+        {
+          "title": "Record the settings",
+          "instruction": "Expand Analysis settings and enter the recorded settings. Click Save evidence.",
+          "fields": [
+            {
+              "label": "Selections, cutoffs and sampling",
+              "value": "Structure: 1AKE chain A; ligand: AP5; distance-guide cutoff: 4 angstrom. Replay target: native/6_1_interaction_view_alternate.pse in the completed package."
+            }
+          ],
+          "expected": "The page confirms Evidence saved, and Evidence & sources shows 1 record.",
+          "screenshots": [
+            "images/f1-b6/04-01.png"
+          ],
+          "caption": "The saved settings identify the selections and conditions used for the check."
+        },
+        {
+          "title": "State the interpretation limit",
+          "instruction": "Click Add limitation. Keep Write your own selected, enter the limitation, then click Save limitation.",
+          "fields": [
+            {
+              "label": "What limits this conclusion?",
+              "value": "The GUI records the supplied files and camera. Open the PSE in PyMOL to check objects, selections, representations and camera together. Interpret the distance guides as proximity."
+            }
+          ],
+          "expected": "The saved limitation appears with the claim.",
+          "screenshots": [
+            "images/f1-b6/05-01.png"
+          ],
+          "caption": "The claim carries its interpretation limits into the shared package."
+        },
+        {
+          "title": "Read the short audit",
+          "instruction": "Click Review. Read Claim, Visual evidence, Provenance, Uncertainty and Reproducibility. Click a row whenever you want to inspect its linked details.",
+          "fields": [],
+          "expected": "The audit shows the statement, source-linked finding, recorded limitation and current reproducibility status.",
+          "screenshots": [
+            "images/f1-b6/06-01.png"
+          ],
+          "caption": "The five-row audit keeps the statement and supporting record together."
+        },
+        {
+          "title": "Prepare the working draft",
+          "instruction": "Click Export, then Working draft. Read the package-check result.",
+          "fields": [
+            {
+              "label": "Purpose",
+              "value": "Working draft"
+            }
+          ],
+          "expected": "The page shows Draft checks passed.",
+          "screenshots": [
+            "images/f1-b6/07-01.png"
+          ],
+          "caption": "Working draft preserves the completed record and remaining scientific questions."
+        },
+        {
+          "title": "Download the package",
+          "instruction": "Click Download package · ZIP. Check your browser’s downloads for claimtrace-review.zip, then save it with your figure. The ZIP contains the source files, claim record and recipient instructions.",
+          "fields": [],
+          "expected": "The page confirms: Export checks passed. Your browser will download the package.",
+          "screenshots": [
+            "images/f1-b6/08-01.png"
+          ],
+          "caption": "The downloaded ZIP contains the figure, sources and saved claim record."
+        }
+      ],
+      "outcome": "A downloaded Working draft ZIP with one claim, 6 input files, one evidence record and one limitation. The GUI confirms export checks passed.",
+      "download_zip": "downloads/f1-b6-completed.zip",
+      "input_zip": "downloads/f1-b6-inputs.zip"
+    },
+    {
+      "id": "f1-b2",
+      "title": "Contacts across views",
+      "article": "Figure 1B2",
+      "category": "Check contacts and distances",
+      "goal": "Link the same AP5 neighborhood across a 3D proximity view and a residue contact map.",
+      "inputs": [
+        "2_1_interaction_view.pml",
+        "2_1_interaction_view.png",
+        "2_2_residue_contact_map.png",
+        "2_1_interaction_view.pse",
+        "2_2_contact_map_residues.csv",
+        "2_2_contact_map_pairs.csv",
+        "2_1_interaction_view_contacts.json",
+        "pdb_00001ake.cif.gz"
+      ],
+      "steps": [
+        {
+          "title": "Import the example files",
+          "instruction": "Extract the input ZIP and read LAB_NOTES.txt beside the files/ folder. In ClaimTrace, click Choose files on the welcome page, or Start with files in an open package. Select all 8 files inside files/. Enter the package name below and click Create package.",
+          "fields": [
+            {
+              "label": "Package name",
+              "value": "Figure 1B2 - Contacts across views"
+            }
+          ],
+          "expected": "The package opens in Prepare with 8 saved files and the figure visible.",
+          "screenshots": [
+            "images/f1-b2/01-01.png",
+            "images/f1-b2/01-02.png"
+          ],
+          "caption": "Select the original figure and source files, then name the package."
+        },
+        {
+          "title": "Write one figure statement",
+          "instruction": "Click Add claim. Enter the statement and figure label, choose the statement type, and click Save claim.",
+          "fields": [
+            {
+              "label": "Figure statement",
+              "value": "The AP5 pocket links a 3D proximity view to a residue contact map."
+            },
+            {
+              "label": "Figure label",
+              "value": "Figure 1B2"
+            },
+            {
+              "label": "Statement type",
+              "value": "Structure view"
+            }
+          ],
+          "expected": "The statement appears in the left claim list and the figure stays linked.",
+          "screenshots": [
+            "images/f1-b2/02-01.png",
+            "images/f1-b2/02-02.png"
+          ],
+          "caption": "The statement and figure label identify the claim linked to this view."
+        },
+        {
+          "title": "Choose the supporting files",
+          "instruction": "Click Add evidence. Choose the Evidence type and select the listed Source files. Continue in this form for the next step.",
+          "fields": [
+            {
+              "label": "Evidence type",
+              "value": "Contact table"
+            },
+            {
+              "label": "Source files",
+              "value": "2_2_contact_map_residues.csv\n2_2_contact_map_pairs.csv\n2_1_interaction_view_contacts.json\npdb_00001ake.cif.gz"
+            }
+          ],
+          "expected": "The source counter shows 4 selected.",
+          "screenshots": [
+            "images/f1-b2/03-01.png"
+          ],
+          "caption": "Choose files that support this particular statement."
+        },
+        {
+          "title": "Record the finding and settings",
+          "instruction": "Enter the method under How was it checked? and the observation under What did you find? Enter the contact cutoff and distance unit. Open Analysis settings and complete Selections, cutoffs and sampling. Click Save evidence.",
+          "fields": [
+            {
+              "label": "How was it checked?",
+              "value": "Review the residue and contact tables alongside the supplied 3D view and contact map."
+            },
+            {
+              "label": "What did you find?",
+              "value": "The supplied tables describe 214 residues, 36 AP5-neighbor rows, 453 unique full-protein C-alpha contact pairs and 175 contact cells in the displayed map."
+            },
+            {
+              "label": "Contact distance cutoff",
+              "value": "8"
+            },
+            {
+              "label": "Distance unit",
+              "value": "angstrom"
+            },
+            {
+              "label": "Selections, cutoffs and sampling",
+              "value": "Protein contacts: C-alpha distance below 8 angstrom with sequence separation at least 4. Displayed rows: 36 residues within 4.2 angstrom of AP5. Ligand guide cutoff: 4 angstrom. Structure: 1AKE chain A."
+            }
+          ],
+          "expected": "The evidence record appears under Evidence & sources.",
+          "screenshots": [
+            "images/f1-b2/04-01.png"
+          ],
+          "caption": "The evidence form records the method, observation and analysis settings."
+        },
+        {
+          "title": "Inspect the linked contact map",
+          "instruction": "Under the figure, click 2_2_residue_contact_map.png. Read the displayed residue map alongside the recorded counts.",
+          "fields": [],
+          "expected": "The figure switches from the 3D view to the contact map while the same claim remains selected.",
+          "screenshots": [
+            "images/f1-b2/05-01.png"
+          ],
+          "caption": "One statement connects the spatial view and the corresponding table-based plot."
+        },
+        {
+          "title": "State the interpretation limit",
+          "instruction": "Click Add limitation. Enter the limitation and click Save limitation.",
+          "fields": [
+            {
+              "label": "What limits this conclusion?",
+              "value": "The 175 displayed cells and 453 full-protein pairs count different selections. Distance guides show proximity. The 0.521 angstrom AP5 O1D-ARG167 NH1 pair uses B/B alternate locations and needs coordinate-level interpretation."
+            }
+          ],
+          "expected": "Limitations shows 1 saved record.",
+          "screenshots": [
+            "images/f1-b2/06-01.png"
+          ],
+          "caption": "The limitation records what affects interpretation of the figure."
+        },
+        {
+          "title": "Review the short audit",
+          "instruction": "Click Review. Read the five rows of the Claim audit and confirm the evidence and limitation match the figure.",
+          "fields": [],
+          "expected": "Claim, visual evidence, provenance, uncertainty, and reproducibility appear together.",
+          "screenshots": [
+            "images/f1-b2/07-01.png"
+          ],
+          "caption": "Inspect the claim → visual evidence → provenance → uncertainty → reproducibility record."
+        },
+        {
+          "title": "Check the draft export",
+          "instruction": "Click Export. Keep Working draft selected and confirm Draft checks passed.",
+          "fields": [
+            {
+              "label": "Export purpose",
+              "value": "Working draft"
+            }
+          ],
+          "expected": "Download package · ZIP is enabled.",
+          "screenshots": [
+            "images/f1-b2/08-01.png"
+          ],
+          "caption": "Working draft includes the saved records and open questions."
+        },
+        {
+          "title": "Download the package",
+          "instruction": "Click Download package · ZIP. Check your browser’s downloads for claimtrace-review.zip, then save it with your figure. The ZIP contains the source files, claim record and recipient instructions.",
+          "fields": [],
+          "expected": "The page confirms: Export checks passed. Your browser will download the package.",
+          "screenshots": [
+            "images/f1-b2/09-01.png"
+          ],
+          "caption": "The downloaded ZIP contains the entered claim, evidence, limitation, and original input files."
+        }
+      ],
+      "outcome": "A downloaded Working draft ZIP containing 1 claim, 1 evidence record, 1 limitation, and 8 source files.",
+      "open_questions": [
+        "Inspect the AP5 O1D-ARG167 NH1 B/B alternate-location pair in the source coordinates.",
+        "Check the saved view in PyMOL."
+      ],
+      "download_zip": "downloads/f1-b2-completed.zip",
+      "input_zip": "downloads/f1-b2-inputs.zip"
+    },
+    {
+      "title": "Document conserved pocket-water selection",
+      "article": "Figure 4A",
+      "category": "Check contacts and distances",
+      "goal": "Explain which waters remain visible in the retained-water view and record the selection rules.",
+      "open_questions": [
+        "Gather the remaining source structures before repeating the ensemble alignment.",
+        "Bridge proxies describe heavy-atom distances. Molecular replay remains a separate viewer check."
+      ],
+      "id": "f3-a",
+      "inputs": [
+        "3UQX.pdb",
+        "alignment_metadata.csv",
+        "bace1_selected_structures.csv",
+        "case01_real_a1_all_waters.pml",
+        "case01_real_a1_all_waters.png",
+        "case01_real_a1_all_waters.pse",
+        "case01_real_a2_retained_waters.pml",
+        "case01_real_a2_retained_waters.png",
+        "case01_real_a2_retained_waters.pse",
+        "case01_real_a3_waters_removed.pml",
+        "case01_real_a3_waters_removed.png",
+        "case01_real_a3_waters_removed.pse",
+        "water_evidence_summary.json",
+        "water_evidence_table.csv"
+      ],
+      "steps": [
+        {
+          "title": "Create the package",
+          "instruction": "Extract the input ZIP and read LAB_NOTES.txt beside the files/ folder. In ClaimTrace, click Choose files on the welcome page, or Start with files in an open package. Select all 14 files inside files/. Enter the package name below and click Create package.",
+          "fields": [
+            {
+              "label": "Package name",
+              "value": "Figure 4A - Selecting conserved pocket waters"
+            }
+          ],
+          "expected": "The package opens with 14 files.",
+          "screenshots": [
+            "images/f3-a/01-01.png"
+          ],
+          "caption": "Figure 4A input files and package name."
+        },
+        {
+          "title": "Write the figure statement",
+          "instruction": "Click Add claim. Use Edit claim when updating a saved statement. Enter the statement and figure label. Under Linked scenes, select case01_real_a2_retained_waters.pml and clear the other scenes. Click Save claim.",
+          "fields": [
+            {
+              "label": "Figure statement",
+              "value": "The retained-water view preserves eight selected waters around the 3UQX ligand, including six bridge proxies."
+            },
+            {
+              "label": "Figure label",
+              "value": "Figure 4A"
+            },
+            {
+              "label": "Statement type",
+              "value": "Structure view"
+            },
+            {
+              "label": "Linked scenes",
+              "value": "case01_real_a2_retained_waters.pml"
+            }
+          ],
+          "expected": "The statement appears in the Claims sidebar.",
+          "screenshots": [
+            "images/f3-a/02-01.png"
+          ],
+          "caption": "The completed claim fields, shown here during final confirmation through Edit claim."
+        },
+        {
+          "title": "Choose the evidence and its sources",
+          "instruction": "Click Add evidence. Choose the evidence type and select the Source files listed below. Scroll within the file list to find each source. Enter the method and observation.",
+          "fields": [
+            {
+              "label": "Evidence type",
+              "value": "Contact table"
+            },
+            {
+              "label": "Source files",
+              "value": "3UQX.pdb\nalignment_metadata.csv\nbace1_selected_structures.csv\nwater_evidence_summary.json\nwater_evidence_table.csv"
+            },
+            {
+              "label": "How was it checked?",
+              "value": "Compare the three saved water views with the supplied water-selection table."
+            },
+            {
+              "label": "What did you find?",
+              "value": "The 3UQX rows contain 14 nearby waters, eight retained waters and six bridge proxies. Across 20 structures, the supplied table contains 283 water records, 114 clusters and 132 retained records."
+            }
+          ],
+          "expected": "5 source files are selected.",
+          "screenshots": [
+            "images/f3-a/03-01.png"
+          ],
+          "caption": "The selected source files and the recorded check support the claim."
+        },
+        {
+          "title": "Record the settings",
+          "instruction": "Enter the 4 angstrom water-neighborhood cutoff. Expand Analysis settings and record the separate cluster, conservation and bridge-proxy thresholds. Click Save evidence.",
+          "fields": [
+            {
+              "label": "Contact distance cutoff",
+              "value": "4"
+            },
+            {
+              "label": "Distance unit",
+              "value": "angstrom"
+            },
+            {
+              "label": "Selections, cutoffs and sampling",
+              "value": "Reference: 3UQX, chain A ligand ZPZ401. Water neighborhood: 4 angstrom; cluster radius: 1.2 angstrom; conservation fraction: at least 0.3; bridge proxy: each water-to-partner distance within 3.5 angstrom. Ensemble: 20 structures."
+            }
+          ],
+          "expected": "The page confirms Evidence saved, and Evidence & sources shows 1 record.",
+          "screenshots": [
+            "images/f3-a/04-01.png"
+          ],
+          "caption": "The saved settings identify the selections and conditions used for the check."
+        },
+        {
+          "title": "Describe the saved view",
+          "instruction": "Click Edit view details in Details to complete. Enter the saved-view context and the visibility explanations from the scene script. Click Save details.",
+          "fields": [
+            {
+              "label": "Saved view or camera context",
+              "value": "Open case01_real_a2_retained_waters.pse. The script orients ligand or pocket, turns y by -15 and x by 8, zooms by 4.8 and clips a slab of 35."
+            },
+            {
+              "label": "Why is not (polymer.protein or (resn ZPZ and chain A and resi 401) or resn HOH) excluded?",
+              "value": "Only protein, ZPZ in chain A residue 401, and water molecules remain in this scene."
+            },
+            {
+              "label": "Why is all hidden?",
+              "value": "The initial hide command clears representations before the script selectively shows the pocket, ligand and retained waters."
+            },
+            {
+              "label": "Why is pocket and elem H hidden?",
+              "value": "Pocket hydrogen sticks are hidden; heavy-atom representations remain."
+            },
+            {
+              "label": "Why is bridge_proxy_* hidden?",
+              "value": "Bridge proxy labels are hidden; distance guide lines remain."
+            }
+          ],
+          "expected": "View recorded appears beside the scene.",
+          "screenshots": [
+            "images/f3-a/05-01.png",
+            "images/f3-a/05-02.png"
+          ],
+          "caption": "The saved scene supplies the orientation and visibility context."
+        },
+        {
+          "title": "Explain the color key",
+          "instruction": "Click Explain visual meaning. For each saved color instruction, choose Identify this molecule or region, then enter its color key. Scroll through the entries and click Save color key.",
+          "fields": [
+            {
+              "label": "What is this color used for? — each entry",
+              "value": "Identify this molecule or region"
+            },
+            {
+              "label": "Color key — protein_gray · context",
+              "value": "Light gray identifies the surrounding protein context."
+            },
+            {
+              "label": "Color key — protein_surface_gray · pocket_surface",
+              "value": "Pale gray identifies the pocket surface."
+            },
+            {
+              "label": "Color key — pocket_gray · pocket and elem C",
+              "value": "Gray identifies carbon atoms in the pocket."
+            },
+            {
+              "label": "Color key — ligand_carbon · (ligand) and elem C",
+              "value": "Teal identifies ligand carbon atoms."
+            },
+            {
+              "label": "Color key — oxygen_red · (ligand) and elem O",
+              "value": "Red identifies ligand oxygen atoms."
+            },
+            {
+              "label": "Color key — nitrogen_blue · (ligand) and elem N",
+              "value": "Blue identifies ligand nitrogen atoms."
+            },
+            {
+              "label": "Color key — sulfur_yellow · (ligand) and elem S",
+              "value": "Yellow identifies ligand sulfur atoms."
+            },
+            {
+              "label": "Color key — chlorine_green · (ligand) and elem CL",
+              "value": "Green identifies ligand chlorine atoms."
+            },
+            {
+              "label": "Color key — retained_green · retained_waters",
+              "value": "Green identifies retained water molecules. Larger green spheres mark the six bridge proxies."
+            },
+            {
+              "label": "Color key — retained_green · bridge_proxy_*",
+              "value": "Green distance guides connect the displayed protein-water-ligand bridge proxies."
+            }
+          ],
+          "expected": "The visual-key question clears from Details to complete.",
+          "screenshots": [
+            "images/f3-a/06-01.png",
+            "images/f3-a/06-02.png",
+            "images/f3-a/06-03.png"
+          ],
+          "caption": "The color key names the selected objects, element colors and scientific highlights.",
+          "captions": [
+            "Protein context and pocket colors.",
+            "Ligand element colors.",
+            "Retained-water and bridge-proxy highlights."
+          ]
+        },
+        {
+          "title": "State the interpretation limit",
+          "instruction": "Click Add limitation. Keep Write your own selected, enter the limitation, then click Save limitation.",
+          "fields": [
+            {
+              "label": "What limits this conclusion?",
+              "value": "Bridge proxies use heavy-atom distances. Full ensemble realignment requires the other source structures. The supplied reference coordinates and three scenes support comparison of retained and hidden water context."
+            }
+          ],
+          "expected": "The saved limitation appears with the claim.",
+          "screenshots": [
+            "images/f3-a/07-01.png"
+          ],
+          "caption": "The claim carries its interpretation limits into the shared package."
+        },
+        {
+          "title": "Read the short audit",
+          "instruction": "Click Review. Read Claim, Visual evidence, Provenance, Uncertainty and Reproducibility. Click a row whenever you want to inspect its linked details.",
+          "fields": [],
+          "expected": "The audit shows the statement, source-linked finding, recorded limitation and current reproducibility status.",
+          "screenshots": [
+            "images/f3-a/08-01.png"
+          ],
+          "caption": "The five-row audit keeps the statement and supporting record together."
+        },
+        {
+          "title": "Prepare the working draft",
+          "instruction": "Click Export, then Working draft. Read the package-check result.",
+          "fields": [
+            {
+              "label": "Purpose",
+              "value": "Working draft"
+            }
+          ],
+          "expected": "The page shows Draft checks passed.",
+          "screenshots": [
+            "images/f3-a/09-01.png"
+          ],
+          "caption": "Working draft preserves the completed record and remaining scientific questions."
+        },
+        {
+          "title": "Download the package",
+          "instruction": "Click Download package · ZIP. Check your browser’s downloads for claimtrace-review.zip, then save it with your figure. The ZIP contains the source files, claim record and recipient instructions.",
+          "fields": [],
+          "expected": "The page confirms: Export checks passed. Your browser will download the package.",
+          "screenshots": [
+            "images/f3-a/10-01.png"
+          ],
+          "caption": "The downloaded ZIP contains the figure, sources and saved claim record."
+        }
+      ],
+      "outcome": "A downloaded Working draft ZIP with one claim, 14 input files, one evidence record and one limitation. The GUI confirms export checks passed.",
+      "download_zip": "downloads/f3-a-completed.zip",
+      "input_zip": "downloads/f3-a-inputs.zip"
+    },
+    {
+      "id": "f3-c",
+      "title": "Check short ligand contacts",
+      "article": "Figure 4C",
+      "category": "Check contacts and distances",
+      "goal": "Link the highlighted short contacts to four atom pairs and the 2.2 angstrom screening rule.",
+      "inputs": [
+        "case03_real_validity_failure_7xbn_rank3.pml",
+        "case03_real_validity_failure_7xbn_rank3.png",
+        "case03_real_validity_failure_7xbn_rank3.png.metadata.json",
+        "case03_real_validity_failure_7xbn_rank3.pse",
+        "case03_selected_close_contacts.csv",
+        "protein.pdbqt",
+        "rank3_score0.63.sdf"
+      ],
+      "steps": [
+        {
+          "title": "Import the case files",
+          "instruction": "Extract the input ZIP and read LAB_NOTES.txt beside the files/ folder. In ClaimTrace, click Choose files on the welcome page, or Start with files in an open package. Select all 7 files inside files/. Enter the package name below and click Create package.",
+          "fields": [
+            {
+              "label": "Package name",
+              "value": "Figure 4C — Check short ligand contacts"
+            }
+          ],
+          "expected": "Saved locally · 7 files appears, and the figure is displayed.",
+          "screenshots": [
+            "images/f3-c/01-01.png"
+          ],
+          "caption": "Import all 7 supplied files into a new working draft."
+        },
+        {
+          "title": "Write the figure statement",
+          "instruction": "Click Add claim. Enter the statement and figure label, choose Ligand binding pose, then click Save claim.",
+          "fields": [
+            {
+              "label": "Figure statement",
+              "value": "The 7XBN rank 3 pose contains four protein-ligand contacts below 2.2 angstrom."
+            },
+            {
+              "label": "Figure label",
+              "value": "Figure 4C"
+            },
+            {
+              "label": "Statement type",
+              "value": "Ligand binding pose"
+            }
+          ],
+          "expected": "The statement appears in the claim list and above the figure.",
+          "screenshots": [
+            "images/f3-c/02-01.png"
+          ],
+          "caption": "Save a statement that can be checked against the linked sources."
+        },
+        {
+          "title": "Record the source-script view",
+          "instruction": "Click Edit view details. Copy the camera instructions and visibility descriptions below, then click Save details. These values describe the supplied PML commands; the original viewer supplies the replay check.",
+          "fields": [
+            {
+              "label": "Saved view or camera context",
+              "value": "Source PML: orient failed_pose or clash_region; zoom failed_pose or clash_region, 4.8; clip slab, 28. Viewer replay remains pending."
+            },
+            {
+              "label": "Why is elem H excluded?",
+              "value": "Hydrogen atoms are removed for the displayed heavy-atom contact screen."
+            },
+            {
+              "label": "Why is all hidden?",
+              "value": "The script starts with hide everything, then shows receptor context, pocket surface, ligand, and close-contact atoms."
+            },
+            {
+              "label": "Why is pocket and elem H hidden?",
+              "value": "Pocket hydrogen sticks are hidden; heavy atoms define the displayed contact region."
+            },
+            {
+              "label": "Why is close_contact_proxy hidden?",
+              "value": "Distance labels are hidden on close_contact_proxy; orange dashed distances and highlighted atoms remain displayed."
+            }
+          ],
+          "expected": "View recorded appears beside the scene.",
+          "screenshots": [
+            "images/f3-c/03-01.png"
+          ],
+          "caption": "Keep source commands and the pending replay status together."
+        },
+        {
+          "title": "Choose the evidence and source files",
+          "instruction": "Click Add evidence. Choose Contact table. Check the source files listed below. Scroll within Source files when needed.",
+          "fields": [
+            {
+              "label": "Evidence type",
+              "value": "Contact table"
+            },
+            {
+              "label": "Source files",
+              "value": "case03_real_validity_failure_7xbn_rank3.png.metadata.json\ncase03_selected_close_contacts.csv\nprotein.pdbqt\nrank3_score0.63.sdf"
+            }
+          ],
+          "expected": "Source files shows 4 selected.",
+          "screenshots": [
+            "images/f3-c/04-01.png"
+          ],
+          "caption": "Link the underlying results and coordinate files used for this statement."
+        },
+        {
+          "title": "Record the result and analysis settings",
+          "instruction": "Enter the check name and its numerical result. Set the contact cutoff and unit. Open Analysis settings and enter the selected system and screen. Click Save evidence.",
+          "fields": [
+            {
+              "label": "How was it checked?",
+              "value": "Review the supplied atom-pair table and its coordinates against the highlighted contact view."
+            },
+            {
+              "label": "What did you find?",
+              "value": "The supplied table lists four contacts at 1.762293, 1.785112, 1.825922 and 1.896798 angstrom. The separate render metadata records five validity flags."
+            },
+            {
+              "label": "Contact distance cutoff",
+              "value": "2.2"
+            },
+            {
+              "label": "Distance unit",
+              "value": "angstrom"
+            },
+            {
+              "label": "Selections, cutoffs and sampling",
+              "value": "Complex: 7XBN; rank: 3; score: 0.63. Displayed screen: ligand-protein heavy-atom distances below 2.2 angstrom."
+            }
+          ],
+          "expected": "The page confirms Evidence saved, and Evidence & sources shows 1 record.",
+          "screenshots": [
+            "images/f3-c/05-01.png"
+          ],
+          "caption": "The evidence form links the result to its method and settings."
+        },
+        {
+          "title": "State the interpretation limit",
+          "instruction": "Click Add limitation. Keep Write your own selected, enter the limitation below, then click Save limitation.",
+          "fields": [
+            {
+              "label": "What limits this conclusion?",
+              "value": "The figure displays geometric close-contact proxies. Regenerating all five recorded validity flags requires the upstream validation inputs and software context."
+            }
+          ],
+          "expected": "Limitation saved appears, and the uncertainty entry is linked to the claim.",
+          "screenshots": [
+            "images/f3-c/06-01.png"
+          ],
+          "caption": "Record the precise scope of the supplied evidence."
+        },
+        {
+          "title": "Read the five-part claim audit",
+          "instruction": "Click Review. Read Claim, Visual evidence, Provenance, Uncertainty and Reproducibility. Compare the numerical values and scope with your source notes.",
+          "fields": [],
+          "expected": "Provenance and Uncertainty read Recorded. Visual evidence reads Review needed because region identities remain open. Reproducibility states Replay pending.",
+          "screenshots": [
+            "images/f3-c/07-01.png"
+          ],
+          "caption": "The audit brings the statement, figure, sources and limitation together."
+        },
+        {
+          "title": "Check the working draft",
+          "instruction": "Click Export. Keep Working draft selected. Expand the open record questions to see the remaining work.",
+          "fields": [
+            {
+              "label": "Purpose",
+              "value": "Working draft"
+            }
+          ],
+          "expected": "Draft checks passed; 2 open record questions cover visual meaning and selected region identities.",
+          "screenshots": [
+            "images/f3-c/08-01.png"
+          ],
+          "caption": "The draft retains its open questions for the next author or reader."
+        },
+        {
+          "title": "Download the review package",
+          "instruction": "Click Download package · ZIP. Check your browser’s downloads for claimtrace-review.zip, then save it with your figure. The ZIP contains the source files, claim record and recipient instructions.",
+          "fields": [],
+          "expected": "The page confirms: Export checks passed. Your browser will download the package.",
+          "screenshots": [
+            "images/f3-c/09-01.png"
+          ],
+          "caption": "The browser confirms that the saved package passed its export checks."
+        }
+      ],
+      "outcome": "One Figure 4C claim with 4 linked evidence files and one recorded limitation, exported as a Working draft ZIP.",
+      "open_questions": [
+        "Explain visual meaning for the imported scene colors.",
+        "Confirm selected molecule or residue identities.",
+        "Full PoseBusters flag regeneration requires upstream validation inputs and software context.",
+        "Open the scene in PyMOL and record the replay result."
+      ],
+      "download_zip": "downloads/f3-c-completed.zip",
+      "input_zip": "downloads/f3-c-inputs.zip"
+    },
+    {
+      "title": "Record an Asp110-ligand distance",
+      "article": "Figure 4D",
+      "category": "Check contacts and distances",
+      "goal": "Identify the two atoms joined by a distance guide and keep simulation setup context attached to its own source.",
+      "open_questions": [
+        "Use the original dyn106 topology to reconcile the TIP residue and atom counts.",
+        "The 3PBL coordinates provide static context; dyn106 is a separate simulation record. Molecular replay remains a viewer check."
+      ],
+      "id": "f3-d",
+      "inputs": [
+        "3PBL.pdb",
+        "case04_real_3pbl_eticlopride_asp110.pml",
+        "case04_real_3pbl_eticlopride_asp110.png",
+        "case04_real_3pbl_eticlopride_asp110.pse",
+        "gpcrmd_dyn106_setup_metadata.csv",
+        "gpcrmd_dyn106_system_counts.csv"
+      ],
+      "steps": [
+        {
+          "title": "Create the package",
+          "instruction": "Extract the input ZIP and read LAB_NOTES.txt beside the files/ folder. In ClaimTrace, click Choose files on the welcome page, or Start with files in an open package. Select all 6 files inside files/. Enter the package name below and click Create package.",
+          "fields": [
+            {
+              "label": "Package name",
+              "value": "Figure 4D - Asp110-ligand distance"
+            }
+          ],
+          "expected": "The package opens with 6 files.",
+          "screenshots": [
+            "images/f3-d/01-01.png"
+          ],
+          "caption": "Figure 4D input files and package name."
+        },
+        {
+          "title": "Write the figure statement",
+          "instruction": "Click Add claim. Enter the statement and figure label. Click Save claim.",
+          "fields": [
+            {
+              "label": "Figure statement",
+              "value": "The 3PBL view shows Asp110 OD2 and eticlopride N2 separated by 2.702419 angstrom."
+            },
+            {
+              "label": "Figure label",
+              "value": "Figure 4D"
+            },
+            {
+              "label": "Statement type",
+              "value": "Structure view"
+            }
+          ],
+          "expected": "The statement appears in the Claims sidebar.",
+          "screenshots": [
+            "images/f3-d/02-01.png"
+          ],
+          "caption": "A single statement with its figure label and statement type."
+        },
+        {
+          "title": "Choose the evidence and its sources",
+          "instruction": "Click Add evidence. Choose the evidence type and select the Source files listed below. Scroll within the file list to find each source. Enter the method and observation.",
+          "fields": [
+            {
+              "label": "Evidence type",
+              "value": "Distance measurements"
+            },
+            {
+              "label": "Source files",
+              "value": "case04_real_3pbl_eticlopride_asp110.pml\n3PBL.pdb\ngpcrmd_dyn106_setup_metadata.csv\ngpcrmd_dyn106_system_counts.csv"
+            },
+            {
+              "label": "How was it checked?",
+              "value": "Inspect the two selected atoms in 3PBL and review the separately supplied dyn106 setup table."
+            },
+            {
+              "label": "What did you find?",
+              "value": "The 3PBL chain A coordinates place Asp110 OD2 2.702419 angstrom from ETQ1200 N2. The separate dyn106 setup table records ACEMD/GPUGRID, CHARMM36m, TIP3P, POPC and a 4 fs timestep."
+            }
+          ],
+          "expected": "4 source files are selected.",
+          "screenshots": [
+            "images/f3-d/03-01.png"
+          ],
+          "caption": "The selected source files and the recorded check support the claim."
+        },
+        {
+          "title": "Record the settings",
+          "instruction": "Enter Measured distance and Distance unit. Expand Analysis settings and enter Selections, cutoffs and sampling. Open Applies to these selections. Keep ligand and asp110 selected; clear the other selections. Click Save evidence.",
+          "fields": [
+            {
+              "label": "Measured distance",
+              "value": "2.702419"
+            },
+            {
+              "label": "Distance unit",
+              "value": "angstrom"
+            },
+            {
+              "label": "Selections, cutoffs and sampling",
+              "value": "Displayed structure: PDB 3PBL, chain A; atom pair: Asp110 OD2 and ETQ1200 N2. Setup context: GPCRmd dyn106, from the supplied metadata table."
+            },
+            {
+              "label": "Applies to these selections",
+              "value": "ligand; asp110"
+            }
+          ],
+          "expected": "The page confirms Evidence saved, and Evidence & sources shows 1 record.",
+          "screenshots": [
+            "images/f3-d/04-01.png",
+            "images/f3-d/04-02.png"
+          ],
+          "caption": "The saved settings identify the selections and conditions used for the check."
+        },
+        {
+          "title": "Describe the saved view",
+          "instruction": "Click Edit view details in Details to complete. Enter the saved-view context and the visibility explanations from the scene script. Click Save details.",
+          "fields": [
+            {
+              "label": "Saved view or camera context",
+              "value": "Open case04_real_3pbl_eticlopride_asp110.pse. The script orients ligand or pocket, turns y by -20 and x by 10, zooms ligand or pocket or asp110 by 4.2, and clips a slab of 30."
+            },
+            {
+              "label": "Why is not chain A excluded?",
+              "value": "The scene retains chain A of 3PBL."
+            },
+            {
+              "label": "Why is all hidden?",
+              "value": "The initial hide command clears representations before the script selectively shows the pocket, ligand and Asp110."
+            },
+            {
+              "label": "Why is pocket and elem H hidden?",
+              "value": "Pocket hydrogen sticks are hidden; heavy-atom representations remain."
+            },
+            {
+              "label": "Why is asp110_eticlopride_proxy hidden?",
+              "value": "The atom-pair distance label is hidden; the green distance guide remains."
+            }
+          ],
+          "expected": "View recorded appears beside the scene.",
+          "screenshots": [
+            "images/f3-d/05-01.png",
+            "images/f3-d/05-02.png"
+          ],
+          "caption": "The saved scene supplies the orientation and visibility context."
+        },
+        {
+          "title": "Explain the color key",
+          "instruction": "Click Explain visual meaning. For each saved color instruction, choose Identify this molecule or region, then enter its color key. Scroll through the entries and click Save color key.",
+          "fields": [
+            {
+              "label": "What is this color used for? — each entry",
+              "value": "Identify this molecule or region"
+            },
+            {
+              "label": "Color key — protein_gray · context",
+              "value": "Light gray identifies the surrounding receptor context."
+            },
+            {
+              "label": "Color key — protein_surface_gray · pocket_surface",
+              "value": "Pale gray identifies the pocket surface."
+            },
+            {
+              "label": "Color key — pocket_gray · pocket and elem C",
+              "value": "Gray identifies carbon atoms in the pocket."
+            },
+            {
+              "label": "Color key — ligand_carbon · (ligand) and elem C",
+              "value": "Teal identifies ligand carbon atoms."
+            },
+            {
+              "label": "Color key — oxygen_red · (ligand) and elem O",
+              "value": "Red identifies ligand oxygen atoms."
+            },
+            {
+              "label": "Color key — nitrogen_blue · (ligand) and elem N",
+              "value": "Blue identifies ligand nitrogen atoms."
+            },
+            {
+              "label": "Color key — sulfur_yellow · (ligand) and elem S",
+              "value": "Yellow identifies ligand sulfur atoms."
+            },
+            {
+              "label": "Color key — chlorine_green · (ligand) and elem CL",
+              "value": "Green identifies ligand chlorine atoms."
+            },
+            {
+              "label": "Color key — provenance_blue · asp110 and elem C",
+              "value": "Blue identifies Asp110 carbon atoms."
+            },
+            {
+              "label": "Color key — oxygen_red · asp110 and elem O",
+              "value": "Red identifies Asp110 oxygen atoms."
+            },
+            {
+              "label": "Color key — retained_green · asp110_eticlopride_proxy",
+              "value": "The green distance guide joins Asp110 OD2 and eticlopride N2."
+            }
+          ],
+          "expected": "The visual-key question clears from Details to complete.",
+          "screenshots": [
+            "images/f3-d/06-01.png",
+            "images/f3-d/06-02.png",
+            "images/f3-d/06-03.png"
+          ],
+          "caption": "The color key names the selected objects, element colors and scientific highlights.",
+          "captions": [
+            "Protein context and pocket colors.",
+            "Ligand element colors.",
+            "Asp110 colors and the atom-pair distance guide."
+          ]
+        },
+        {
+          "title": "State the interpretation limit",
+          "instruction": "Click Add limitation. Keep Write your own selected, enter the limitation, then click Save limitation.",
+          "fields": [
+            {
+              "label": "What limits this conclusion?",
+              "value": "The distance describes the static 3PBL structure. GPCRmd dyn106 supplies separate simulation context. Its TIP row reports 8,134 residues and 54,390 atoms; resolve that count against the original topology before using it as a system total."
+            }
+          ],
+          "expected": "The saved limitation appears with the claim.",
+          "screenshots": [
+            "images/f3-d/07-01.png"
+          ],
+          "caption": "The claim carries its interpretation limits into the shared package."
+        },
+        {
+          "title": "Read the short audit",
+          "instruction": "Click Review. Read Claim, Visual evidence, Provenance, Uncertainty and Reproducibility. Click a row whenever you want to inspect its linked details.",
+          "fields": [],
+          "expected": "The audit shows the statement, source-linked finding, recorded limitation and current reproducibility status.",
+          "screenshots": [
+            "images/f3-d/08-01.png"
+          ],
+          "caption": "The five-row audit keeps the statement and supporting record together."
+        },
+        {
+          "title": "Prepare the working draft",
+          "instruction": "Click Export, then Working draft. Read the package-check result.",
+          "fields": [
+            {
+              "label": "Purpose",
+              "value": "Working draft"
+            }
+          ],
+          "expected": "The page shows Draft checks passed.",
+          "screenshots": [
+            "images/f3-d/09-01.png"
+          ],
+          "caption": "Working draft preserves the completed record and remaining scientific questions."
+        },
+        {
+          "title": "Download the package",
+          "instruction": "Click Download package · ZIP. Check your browser’s downloads for claimtrace-review.zip, then save it with your figure. The ZIP contains the source files, claim record and recipient instructions.",
+          "fields": [],
+          "expected": "The page confirms: Export checks passed. Your browser will download the package.",
+          "screenshots": [
+            "images/f3-d/10-01.png"
+          ],
+          "caption": "The downloaded ZIP contains the figure, sources and saved claim record."
+        }
+      ],
+      "outcome": "A downloaded Working draft ZIP with one claim, 6 input files, one evidence record and one limitation. The GUI confirms export checks passed.",
+      "download_zip": "downloads/f3-d-completed.zip",
+      "input_zip": "downloads/f3-d-inputs.zip"
+    },
+    {
+      "id": "f1-b3",
+      "title": "Confidence and geometry",
+      "article": "Figure 1B3",
+      "category": "Compare models and ensembles",
+      "goal": "Record which model a confidence-colored view uses, what its colors mean and which residues the geometry plot covers.",
+      "inputs": [
+        "3_1_alphafold_plddt.pml",
+        "3_1_alphafold_plddt.png",
+        "3_2_ramachandran_general.png",
+        "3_2_ramachandran.csv",
+        "3_1_alphafold_plddt.pse",
+        "3_2_ramachandran.json",
+        "AF-P69441-F1-model_v6.cif"
+      ],
+      "steps": [
+        {
+          "title": "Import the example files",
+          "instruction": "Extract the input ZIP and read LAB_NOTES.txt beside the files/ folder. In ClaimTrace, click Choose files on the welcome page, or Start with files in an open package. Select all 7 files inside files/. Enter the package name below and click Create package.",
+          "fields": [
+            {
+              "label": "Package name",
+              "value": "Figure 1B3 - Confidence and geometry"
+            }
+          ],
+          "expected": "The package opens in Prepare with 7 saved files and the figure visible.",
+          "screenshots": [
+            "images/f1-b3/01-01.png",
+            "images/f1-b3/01-02.png"
+          ],
+          "caption": "Select the original figure and source files, then name the package."
+        },
+        {
+          "title": "Write one figure statement",
+          "instruction": "Click Add claim. Enter the statement and figure label, choose the statement type, and click Save claim.",
+          "fields": [
+            {
+              "label": "Figure statement",
+              "value": "AlphaFold confidence and backbone geometry provide complementary checks of the P69441 model."
+            },
+            {
+              "label": "Figure label",
+              "value": "Figure 1B3"
+            },
+            {
+              "label": "Statement type",
+              "value": "Computed model"
+            }
+          ],
+          "expected": "The statement appears in the left claim list and the figure stays linked.",
+          "screenshots": [
+            "images/f1-b3/02-01.png",
+            "images/f1-b3/02-02.png"
+          ],
+          "caption": "The statement and figure label identify the claim linked to this view."
+        },
+        {
+          "title": "Choose the supporting files",
+          "instruction": "Click Add evidence. Choose the Evidence type and select the listed Source files. Continue in this form for the next step.",
+          "fields": [
+            {
+              "label": "Evidence type",
+              "value": "Comparison or validation report"
+            },
+            {
+              "label": "Source files",
+              "value": "3_2_ramachandran.csv\n3_2_ramachandran.json\nAF-P69441-F1-model_v6.cif\n3_1_alphafold_plddt.pse"
+            }
+          ],
+          "expected": "The source counter shows 4 selected.",
+          "screenshots": [
+            "images/f1-b3/03-01.png"
+          ],
+          "caption": "Choose files that support this particular statement."
+        },
+        {
+          "title": "Record the finding and settings",
+          "instruction": "Enter the method under How was it checked? and the observation under What did you find? Open Analysis settings and complete Selections, cutoffs and sampling. Click Save evidence.",
+          "fields": [
+            {
+              "label": "How was it checked?",
+              "value": "Review the model confidence values and supplied Ramachandran assessment."
+            },
+            {
+              "label": "What did you find?",
+              "value": "The model has pLDDT values from 87.88 to 98.62. The supplied geometry assessment covers 212 residues: 209 favored, 3 allowed and 0 outliers. The displayed general-residue panel contains 144 residues."
+            },
+            {
+              "label": "Selections, cutoffs and sampling",
+              "value": "Model: AF-P69441-F1 v6. Confidence: pLDDT, 0-100. Geometry assessment: the same model, 212 assessed residues; general-residue panel: 144 residues."
+            }
+          ],
+          "expected": "The evidence record appears under Evidence & sources.",
+          "screenshots": [
+            "images/f1-b3/04-01.png"
+          ],
+          "caption": "The evidence form records the method, observation and analysis settings."
+        },
+        {
+          "title": "Explain the confidence colors",
+          "instruction": "Click Explain visual meaning. Choose Other meaning, enter the Color key, and click Save color key. Then click 3_2_ramachandran_general.png to inspect the geometry panel.",
+          "fields": [
+            {
+              "label": "What is this color used for?",
+              "value": "Other meaning"
+            },
+            {
+              "label": "Color key",
+              "value": "The PML colors the B-factor pLDDT field from red (0) to blue (100). The original PSE records a narrower 87.5-99 display range."
+            }
+          ],
+          "expected": "The visual-meaning task is resolved, and the linked geometry plot remains available.",
+          "screenshots": [
+            "images/f1-b3/05-01.png",
+            "images/f1-b3/05-02.png"
+          ],
+          "caption": "Record what the supplied color command means and inspect the complementary plot."
+        },
+        {
+          "title": "State the interpretation limit",
+          "instruction": "Click Add limitation. Enter the limitation and click Save limitation.",
+          "fields": [
+            {
+              "label": "What limits this conclusion?",
+              "value": "Confidence and backbone geometry address different properties. The supplied PML specifies a 0-100 color range; the original PSE records a narrower 87.5-99 range. Match the color key to the saved scene when checking replay."
+            }
+          ],
+          "expected": "Limitations shows 1 saved record.",
+          "screenshots": [
+            "images/f1-b3/06-01.png"
+          ],
+          "caption": "The limitation records what affects interpretation of the figure."
+        },
+        {
+          "title": "Review the short audit",
+          "instruction": "Click Review. Read the five rows of the Claim audit and confirm the evidence and limitation match the figure.",
+          "fields": [],
+          "expected": "Claim, visual evidence, provenance, uncertainty, and reproducibility appear together.",
+          "screenshots": [
+            "images/f1-b3/07-01.png"
+          ],
+          "caption": "Inspect the claim → visual evidence → provenance → uncertainty → reproducibility record."
+        },
+        {
+          "title": "Check the draft export",
+          "instruction": "Click Export. Keep Working draft selected and confirm Draft checks passed.",
+          "fields": [
+            {
+              "label": "Export purpose",
+              "value": "Working draft"
+            }
+          ],
+          "expected": "Download package · ZIP is enabled.",
+          "screenshots": [
+            "images/f1-b3/08-01.png"
+          ],
+          "caption": "Working draft includes the saved records and open questions."
+        },
+        {
+          "title": "Download the package",
+          "instruction": "Click Download package · ZIP. Check your browser’s downloads for claimtrace-review.zip, then save it with your figure. The ZIP contains the source files, claim record and recipient instructions.",
+          "fields": [],
+          "expected": "The page confirms: Export checks passed. Your browser will download the package.",
+          "screenshots": [
+            "images/f1-b3/09-01.png"
+          ],
+          "caption": "The downloaded ZIP contains the entered claim, evidence, limitation, and original input files."
+        }
+      ],
+      "outcome": "A downloaded Working draft ZIP containing 1 claim, 1 evidence record, 1 limitation, and 7 source files.",
+      "open_questions": [
+        "Compare the saved PSE color range with the PML color command.",
+        "Open the scene in PyMOL and record the replay result."
+      ],
+      "download_zip": "downloads/f1-b3-completed.zip",
+      "input_zip": "downloads/f1-b3-inputs.zip"
+    },
+    {
+      "id": "f1-b4",
+      "title": "AP5 conformational clusters",
+      "article": "Figure 1B4",
+      "category": "Compare models and ensembles",
+      "goal": "Link four displayed AP5 clusters to their coordinate sources, alignment reference and exploratory density plot.",
+      "inputs": [
+        "4_1_ap5_conformational_landscape.png",
+        "4_2_ap5_representative_states.png",
+        "4_1_ap5_conformational_landscape.csv",
+        "B4_PROVENANCE.json",
+        "4_1_ap5_conformational_landscape.json",
+        "ap5_instance_assignments.csv",
+        "ap5_pca_explained_variance.csv",
+        "ap5_representative_states.csv",
+        "common_ap5_atom_names.json",
+        "pdb_00001ake.cif.gz",
+        "pdb_00001e4v.cif.gz",
+        "pdb_00001e4y.cif.gz",
+        "pdb_00003hpq.cif.gz",
+        "pdb_00003hpr.cif.gz",
+        "pdb_00004x8l.cif.gz",
+        "pdb_00004x8o.cif.gz",
+        "pdb_00005eje.cif.gz",
+        "pdb_00006ham.cif.gz",
+        "pdb_00006hap.cif.gz",
+        "pdb_00008bqf.cif.gz",
+        "pdb_00008pvw.cif.gz",
+        "pdb_00008q2b.cif.gz",
+        "pdb_00009l14.cif.gz",
+        "pdb_00009r6u.cif.gz",
+        "pdb_00009r71.cif.gz"
+      ],
+      "steps": [
+        {
+          "title": "Import the example files",
+          "instruction": "Extract the input ZIP and read LAB_NOTES.txt beside the files/ folder. In ClaimTrace, click Choose files on the welcome page, or Start with files in an open package. Select all 25 files inside files/. Enter the package name below and click Create package.",
+          "fields": [
+            {
+              "label": "Package name",
+              "value": "Figure 1B4 - AP5 conformational clusters"
+            }
+          ],
+          "expected": "The package opens in Prepare with 25 saved files and the figure visible.",
+          "screenshots": [
+            "images/f1-b4/01-01.png",
+            "images/f1-b4/01-02.png"
+          ],
+          "caption": "Select the original figure and source files, then name the package."
+        },
+        {
+          "title": "Write one figure statement",
+          "instruction": "Click Add claim. Enter the statement and figure label, choose the statement type, and click Save claim.",
+          "fields": [
+            {
+              "label": "Figure statement",
+              "value": "Thirty AP5 instances form four descriptive conformational clusters."
+            },
+            {
+              "label": "Figure label",
+              "value": "Figure 1B4"
+            },
+            {
+              "label": "Statement type",
+              "value": "Model comparison"
+            }
+          ],
+          "expected": "The statement appears in the left claim list and the figure stays linked.",
+          "screenshots": [
+            "images/f1-b4/02-01.png",
+            "images/f1-b4/02-02.png"
+          ],
+          "caption": "The statement and figure label identify the claim linked to this view."
+        },
+        {
+          "title": "Record the plot context",
+          "instruction": "Click Set figure type. Choose Analysis plot, enter the Plot settings, and click Save details.",
+          "fields": [
+            {
+              "label": "View type",
+              "value": "Analysis plot"
+            },
+            {
+              "label": "Plot settings",
+              "value": "PC1 versus PC2 for 30 AP5 instances with four cluster assignments. The saved surface applies -kB*T*ln(P/Pmax) to a KDE of these crystallographic samples at a chosen 300 K display temperature. Representatives: 4X8O B, 5EJE B, 6HAM A and 8Q2B A."
+            }
+          ],
+          "expected": "The figure shows Saved figure · Settings recorded.",
+          "screenshots": [
+            "images/f1-b4/03-01.png"
+          ],
+          "caption": "Declare the figure as an analysis plot and record its dimensions and sample."
+        },
+        {
+          "title": "Choose the supporting files",
+          "instruction": "Click Add evidence. Choose the Evidence type and select the listed Source files. Continue in this form for the next step.",
+          "fields": [
+            {
+              "label": "Evidence type",
+              "value": "Comparison or validation report"
+            },
+            {
+              "label": "Source files",
+              "value": "4_1_ap5_conformational_landscape.csv\nB4_PROVENANCE.json\nap5_instance_assignments.csv\nap5_pca_explained_variance.csv\nap5_representative_states.csv"
+            }
+          ],
+          "expected": "The source counter shows 5 selected.",
+          "screenshots": [
+            "images/f1-b4/04-01.png"
+          ],
+          "caption": "Choose files that support this particular statement."
+        },
+        {
+          "title": "Select all coordinate sources",
+          "instruction": "In Find source files, type .cif.gz. Click Select shown. Confirm 16 of 25 shown and 21 selected, then clear the search field.",
+          "fields": [
+            {
+              "label": "Find source files",
+              "value": ".cif.gz"
+            }
+          ],
+          "expected": "All 16 coordinate files join the 5 selected processed sources.",
+          "screenshots": [
+            "images/f1-b4/05-01.png"
+          ],
+          "caption": "The source filter selects the full coordinate set while retaining earlier selections."
+        },
+        {
+          "title": "Record the finding and settings",
+          "instruction": "Enter the method under How was it checked? and the observation under What did you find? Open Analysis settings and complete Selections, cutoffs and sampling. Click Save evidence.",
+          "fields": [
+            {
+              "label": "How was it checked?",
+              "value": "Review the supplied protein-aligned AP5 coordinates, standardized-coordinate PCA, clustering and density summaries."
+            },
+            {
+              "label": "What did you find?",
+              "value": "The supplied assignments retain 30 AP5 instances from 15 of 16 input PDB entries and identify four clusters. PC1 and PC2 explain 32.66% and 14.19% of the variance."
+            },
+            {
+              "label": "Selections, cutoffs and sampling",
+              "value": "Alignment: corresponding protein C-alpha atoms to 1AKE chain A. Features: 55 AP5 heavy atoms after applying that protein alignment; standardized coordinates. Clustering: KMeans on PC1 and PC2, four clusters, random state 19, n_init 50. Excluded instances: 8PVW A and 9R6U A. Representatives: 4X8O B, 5EJE B, 6HAM A and 8Q2B A."
+            }
+          ],
+          "expected": "The evidence record appears under Evidence & sources.",
+          "screenshots": [
+            "images/f1-b4/06-01.png"
+          ],
+          "caption": "The evidence form records the method, observation and analysis settings."
+        },
+        {
+          "title": "State the interpretation limit",
+          "instruction": "Click Add limitation. Enter the limitation and click Save limitation.",
+          "fields": [
+            {
+              "label": "What limits this conclusion?",
+              "value": "The landscape is an exploratory density transform of a crystallographic sample. Its energy-like scale depends on the selected structures, alignment, KDE and chosen display temperature; thermodynamic interpretation requires equilibrium sampling."
+            }
+          ],
+          "expected": "Limitations shows 1 saved record.",
+          "screenshots": [
+            "images/f1-b4/07-01.png"
+          ],
+          "caption": "The limitation records what affects interpretation of the figure."
+        },
+        {
+          "title": "Review the short audit",
+          "instruction": "Click Review. Read the five rows of the Claim audit and confirm the evidence and limitation match the figure.",
+          "fields": [],
+          "expected": "Claim, visual evidence, provenance, uncertainty, and reproducibility appear together.",
+          "screenshots": [
+            "images/f1-b4/08-01.png"
+          ],
+          "caption": "Inspect the claim → visual evidence → provenance → uncertainty → reproducibility record."
+        },
+        {
+          "title": "Check the draft export",
+          "instruction": "Click Export. Keep Working draft selected and confirm Draft checks passed.",
+          "fields": [
+            {
+              "label": "Export purpose",
+              "value": "Working draft"
+            }
+          ],
+          "expected": "Download package · ZIP is enabled.",
+          "screenshots": [
+            "images/f1-b4/09-01.png"
+          ],
+          "caption": "Working draft includes the saved records and open questions."
+        },
+        {
+          "title": "Download the package",
+          "instruction": "Click Download package · ZIP. Check your browser’s downloads for claimtrace-review.zip, then save it with your figure. The ZIP contains the source files, claim record and recipient instructions.",
+          "fields": [],
+          "expected": "The page confirms: Export checks passed. Your browser will download the package.",
+          "screenshots": [
+            "images/f1-b4/10-01.png"
+          ],
+          "caption": "The downloaded ZIP contains the entered claim, evidence, limitation, and original input files."
+        }
+      ],
+      "outcome": "A downloaded Working draft ZIP containing 1 claim, 1 evidence record, 1 limitation, and 25 source files.",
+      "open_questions": [
+        "Keep the cluster/density interpretation descriptive for the sampled crystallographic structures.",
+        "Use the supplied provenance and settings when reproducing the upstream analysis."
+      ],
+      "download_zip": "downloads/f1-b4-completed.zip",
+      "input_zip": "downloads/f1-b4-inputs.zip"
+    },
+    {
+      "id": "f3-b",
+      "title": "Compare ranked ligand poses",
+      "article": "Figure 4B",
+      "category": "Compare models and ensembles",
+      "goal": "Compare five displayed poses and trace their scores and reference RMSDs to the supplied table.",
+      "inputs": [
+        "case02_pose_evidence_augmented.csv",
+        "case02_real_gnina_pose_ensemble_7r26.pml",
+        "case02_real_gnina_pose_ensemble_7r26.png",
+        "case02_real_gnina_pose_ensemble_7r26.png.metadata.json",
+        "case02_real_gnina_pose_ensemble_7r26.pse",
+        "protein.pdbqt",
+        "rank1_score1.00.sdf",
+        "rank2_score1.00.sdf",
+        "rank3_score0.91.sdf",
+        "rank4_score0.85.sdf",
+        "rank5_score0.82.sdf"
+      ],
+      "steps": [
+        {
+          "title": "Import the case files",
+          "instruction": "Extract the input ZIP and read LAB_NOTES.txt beside the files/ folder. In ClaimTrace, click Choose files on the welcome page, or Start with files in an open package. Select all 11 files inside files/. Enter the package name below and click Create package.",
+          "fields": [
+            {
+              "label": "Package name",
+              "value": "Figure 4B — Compare ranked ligand poses"
+            }
+          ],
+          "expected": "Saved locally · 11 files appears, and the figure is displayed.",
+          "screenshots": [
+            "images/f3-b/01-01.png"
+          ],
+          "caption": "Import all 11 supplied files into a new working draft."
+        },
+        {
+          "title": "Write the figure statement",
+          "instruction": "Click Add claim. Enter the statement and figure label, choose Model comparison, then click Save claim. Model comparison fits the comparison of scores and supplied reference RMSDs across poses.",
+          "fields": [
+            {
+              "label": "Figure statement",
+              "value": "The top two 7R26 poses share a score of 1.00 and differ in supplied reference RMSD: 4.5683 angstrom for rank 1 and 0.3736 angstrom for rank 2."
+            },
+            {
+              "label": "Figure label",
+              "value": "Figure 4B"
+            },
+            {
+              "label": "Statement type",
+              "value": "Model comparison"
+            }
+          ],
+          "expected": "The statement appears in the claim list and above the figure.",
+          "screenshots": [
+            "images/f3-b/02-01.png"
+          ],
+          "caption": "Save a statement that can be checked against the linked sources."
+        },
+        {
+          "title": "Record the source-script view",
+          "instruction": "Click Edit view details. Copy the camera instructions and visibility descriptions below, then click Save details. These values describe the supplied PML commands; the original viewer supplies the replay check.",
+          "fields": [
+            {
+              "label": "Saved view or camera context",
+              "value": "Source PML: orient all_poses; zoom all_poses or pocket, 6.0; clip slab, 22. Viewer replay remains pending."
+            },
+            {
+              "label": "Why is all hidden?",
+              "value": "The script starts with hide everything, then shows the receptor context, pocket surface, pocket sticks, and five ranked poses."
+            },
+            {
+              "label": "Why is elem H excluded?",
+              "value": "Hydrogen atoms are removed before the displayed heavy-atom pose comparison."
+            },
+            {
+              "label": "Why is pocket and elem H hidden?",
+              "value": "Pocket hydrogen sticks are hidden; the view emphasizes the ligand poses and heavy-atom pocket context."
+            }
+          ],
+          "expected": "View recorded appears beside the scene.",
+          "screenshots": [
+            "images/f3-b/03-01.png"
+          ],
+          "caption": "Keep source commands and the pending replay status together."
+        },
+        {
+          "title": "Choose the evidence and source files",
+          "instruction": "Click Add evidence. Choose Comparison or validation report. Check the source files listed below. Scroll within Source files when needed.",
+          "fields": [
+            {
+              "label": "Evidence type",
+              "value": "Comparison or validation report"
+            },
+            {
+              "label": "Source files",
+              "value": "case02_pose_evidence_augmented.csv\nrank1_score1.00.sdf\nrank2_score1.00.sdf\nrank3_score0.91.sdf\nrank4_score0.85.sdf\nrank5_score0.82.sdf\nprotein.pdbqt"
+            }
+          ],
+          "expected": "Source files shows 7 selected.",
+          "screenshots": [
+            "images/f3-b/04-01.png",
+            "images/f3-b/04-02.png"
+          ],
+          "caption": "Link the underlying results and coordinate files used for this statement."
+        },
+        {
+          "title": "Record the result and analysis settings",
+          "instruction": "Enter the check name and its numerical result. Open Analysis settings and enter the recorded thresholds. Click Save evidence.",
+          "fields": [
+            {
+              "label": "How was it checked?",
+              "value": "Review the 7R26 rows in the pose-evidence table alongside the five saved poses."
+            },
+            {
+              "label": "What did you find?",
+              "value": "The supplied 7R26 table gives ranks 1 and 2 a score of 1.00, with reference RMSDs of 4.5683 and 0.3736 angstrom. Its contact and pocket-coverage columns add separate geometric criteria."
+            },
+            {
+              "label": "Selections, cutoffs and sampling",
+              "value": "Complex: 7R26; displayed ranks: 1-5. Contact cutoff: 4.5 angstrom; polar-contact cutoff: 3.5 angstrom; close-contact screen: 2.2 angstrom; supplied reference-RMSD threshold: 2 angstrom."
+            }
+          ],
+          "expected": "The page confirms Evidence saved, and Evidence & sources shows 1 record.",
+          "screenshots": [
+            "images/f3-b/05-01.png"
+          ],
+          "caption": "The evidence form links the result to its method and settings."
+        },
+        {
+          "title": "State the interpretation limit",
+          "instruction": "Click Add limitation. Keep Write your own selected, enter the limitation below, then click Save limitation.",
+          "fields": [
+            {
+              "label": "What limits this conclusion?",
+              "value": "The reference RMSDs are supplied benchmark results. Independent RMSD calculation requires the reference ligand. Select the 7R26 rows; the same CSV also contains 8AQJ."
+            }
+          ],
+          "expected": "Limitation saved appears, and the uncertainty entry is linked to the claim.",
+          "screenshots": [
+            "images/f3-b/06-01.png"
+          ],
+          "caption": "Record the precise scope of the supplied evidence."
+        },
+        {
+          "title": "Read the five-part claim audit",
+          "instruction": "Click Review. Read Claim, Visual evidence, Provenance, Uncertainty and Reproducibility. Compare the numerical values and scope with your source notes.",
+          "fields": [],
+          "expected": "Claim, Visual evidence, Provenance, Uncertainty and Reproducibility read Recorded. Reproducibility also states Replay pending.",
+          "screenshots": [
+            "images/f3-b/07-01.png"
+          ],
+          "caption": "The audit brings the statement, figure, sources and limitation together."
+        },
+        {
+          "title": "Check the working draft",
+          "instruction": "Click Export. Keep Working draft selected. Expand the open record questions to see the remaining work.",
+          "fields": [
+            {
+              "label": "Purpose",
+              "value": "Working draft"
+            }
+          ],
+          "expected": "Draft checks passed; 1 open record question: What do the visual cues mean?",
+          "screenshots": [
+            "images/f3-b/08-01.png"
+          ],
+          "caption": "The draft retains its open questions for the next author or reader."
+        },
+        {
+          "title": "Download the review package",
+          "instruction": "Click Download package · ZIP. Check your browser’s downloads for claimtrace-review.zip, then save it with your figure. The ZIP contains the source files, claim record and recipient instructions.",
+          "fields": [],
+          "expected": "The page confirms: Export checks passed. Your browser will download the package.",
+          "screenshots": [
+            "images/f3-b/09-01.png"
+          ],
+          "caption": "The browser confirms that the saved package passed its export checks."
+        }
+      ],
+      "outcome": "One Figure 4B claim with 7 linked evidence files and one recorded limitation, exported as a Working draft ZIP.",
+      "open_questions": [
+        "Explain visual meaning for the imported scene colors.",
+        "Add the reference ligand before calculating the reference RMSDs independently.",
+        "Open the scene in PyMOL and record the replay result."
+      ],
+      "download_zip": "downloads/f3-b-completed.zip",
+      "input_zip": "downloads/f3-b-inputs.zip"
+    },
+    {
+      "id": "f3-e",
+      "title": "Trace interaction state changes",
+      "article": "Figure 4E",
+      "category": "Review trajectories",
+      "goal": "Trace the displayed interaction changes to selected rows, time sampling and the supplied transition table.",
+      "inputs": [
+        "case05_real_prolif_event_matrix.csv",
+        "case05_real_prolif_event_transitions.csv",
+        "case05a_publication_prolif_event_map.png",
+        "ifp_df.pkl"
+      ],
+      "steps": [
+        {
+          "title": "Import the case files",
+          "instruction": "Extract the input ZIP and read LAB_NOTES.txt beside the files/ folder. In ClaimTrace, click Choose files on the welcome page, or Start with files in an open package. Select all 4 files inside files/. Enter the package name below and click Create package.",
+          "fields": [
+            {
+              "label": "Package name",
+              "value": "Figure 4E — Trace interaction state changes"
+            }
+          ],
+          "expected": "Saved locally · 4 files appears, and the figure is displayed.",
+          "screenshots": [
+            "images/f3-e/01-01.png"
+          ],
+          "caption": "Import all 4 supplied files into a new working draft."
+        },
+        {
+          "title": "Describe the analysis plot",
+          "instruction": "Click Set figure type. Choose Analysis plot, enter the plot context, then click Save details.",
+          "fields": [
+            {
+              "label": "View type",
+              "value": "Analysis plot"
+            },
+            {
+              "label": "Plot settings",
+              "value": "Interaction-state map: 18 rows across 0–499 ns; green = present (1), pale = absent (0). Lower bars show formations above zero and losses below zero."
+            }
+          ],
+          "expected": "Saved figure · Settings recorded appears below the figure.",
+          "screenshots": [
+            "images/f3-e/02-01.png"
+          ],
+          "caption": "Analysis plot records the axes, sampling and visual key for this figure."
+        },
+        {
+          "title": "Write the figure statement",
+          "instruction": "Click Add claim. Enter the statement and figure label, choose Trajectory or mechanism, then click Save claim.",
+          "fields": [
+            {
+              "label": "Figure statement",
+              "value": "The 18 displayed 5-HT1B-ergotamine interaction rows contain 2,299 state changes."
+            },
+            {
+              "label": "Figure label",
+              "value": "Figure 4E"
+            },
+            {
+              "label": "Statement type",
+              "value": "Trajectory or mechanism"
+            }
+          ],
+          "expected": "The statement appears in the claim list and above the figure.",
+          "screenshots": [
+            "images/f3-e/03-01.png"
+          ],
+          "caption": "Save a statement that can be checked against the linked sources."
+        },
+        {
+          "title": "Choose the evidence and source files",
+          "instruction": "Click Add evidence. Choose Trajectory analysis. Check the source files listed below. Scroll within Source files when needed.",
+          "fields": [
+            {
+              "label": "Evidence type",
+              "value": "Trajectory analysis"
+            },
+            {
+              "label": "Source files",
+              "value": "case05_real_prolif_event_matrix.csv\ncase05_real_prolif_event_transitions.csv\nifp_df.pkl"
+            }
+          ],
+          "expected": "Source files shows 3 selected.",
+          "screenshots": [
+            "images/f3-e/04-01.png"
+          ],
+          "caption": "Link the event or occupancy results used for this statement."
+        },
+        {
+          "title": "Record the result and analysis settings",
+          "instruction": "Enter the check name and its numerical result. Use the expanded Analysis settings — Frames and replicates section to record the sampling and scope. Click Save evidence.",
+          "fields": [
+            {
+              "label": "How was it checked?",
+              "value": "Review the supplied event matrix and formed/lost transition table."
+            },
+            {
+              "label": "What did you find?",
+              "value": "The 18 displayed rows contain 1,148 formations and 1,151 losses across 500 recorded time points: 2,299 state changes."
+            },
+            {
+              "label": "Selections, cutoffs and sampling",
+              "value": "System: 5-HT1B-ergotamine. Display: 18 selected switching interactions over 0-499 ns at 1 ns intervals. Original supplied fingerprint dataset: 50 interactions from one recorded series."
+            }
+          ],
+          "expected": "The page confirms Evidence saved, and Evidence & sources shows 1 record.",
+          "screenshots": [
+            "images/f3-e/05-01.png"
+          ],
+          "caption": "The evidence form links the result to its method and settings."
+        },
+        {
+          "title": "State the interpretation limit",
+          "instruction": "Click Add limitation. Keep Write your own selected, enter the limitation below, then click Save limitation.",
+          "fields": [
+            {
+              "label": "What limits this conclusion?",
+              "value": "The view selects 18 switching interactions. The full fingerprint dataset contains 50 interactions, including four persistent interactions. Regenerating fingerprints requires the original topology and trajectory."
+            }
+          ],
+          "expected": "Limitation saved appears, and the uncertainty entry is linked to the claim.",
+          "screenshots": [
+            "images/f3-e/06-01.png"
+          ],
+          "caption": "Record the precise scope of the supplied evidence."
+        },
+        {
+          "title": "Read the five-part claim audit",
+          "instruction": "Click Review. Read Claim, Visual evidence, Provenance, Uncertainty and Reproducibility. Compare the numerical values and scope with your source notes.",
+          "fields": [],
+          "expected": "Visual evidence, Uncertainty and Reproducibility read Recorded. Provenance reads Review needed because the original trajectory/topology inputs remain open.",
+          "screenshots": [
+            "images/f3-e/07-01.png"
+          ],
+          "caption": "The audit brings the statement, figure, sources and limitation together."
+        },
+        {
+          "title": "Check the working draft",
+          "instruction": "Click Export. Keep Working draft selected. Expand the open record questions to see the remaining work.",
+          "fields": [
+            {
+              "label": "Purpose",
+              "value": "Working draft"
+            }
+          ],
+          "expected": "Draft checks passed; 1 open record question requests the inputs and settings behind the trajectory claim.",
+          "screenshots": [
+            "images/f3-e/08-01.png"
+          ],
+          "caption": "The draft retains its open questions for the next author or reader."
+        },
+        {
+          "title": "Download the review package",
+          "instruction": "Click Download package · ZIP. Check your browser’s downloads for claimtrace-review.zip, then save it with your figure. The ZIP contains the source files, claim record and recipient instructions.",
+          "fields": [],
+          "expected": "The page confirms: Export checks passed. Your browser will download the package.",
+          "screenshots": [
+            "images/f3-e/09-01.png"
+          ],
+          "caption": "The browser confirms that the saved package passed its export checks."
+        }
+      ],
+      "outcome": "One Figure 4E claim with 3 linked evidence files and one recorded limitation, exported as a Working draft ZIP.",
+      "open_questions": [
+        "Add the original topology and trajectory files to support independent analysis.",
+        "Record the fingerprint definitions and software version when recomputing from coordinates.",
+        "The figure shows 18 switching interactions; the full dataset contains 50 interactions, including four persistent interactions."
+      ],
+      "download_zip": "downloads/f3-e-completed.zip",
+      "input_zip": "downloads/f3-e-inputs.zip"
+    },
+    {
+      "id": "f3-f",
+      "title": "Compare trajectory repeats",
+      "article": "Figure 4F",
+      "category": "Review trajectories",
+      "goal": "Compare three distance-state occupancies and record separate sampling for the distance curves and contact map.",
+      "inputs": [
+        "case05b_publication_gpcrmd_d3r_event_summary.png",
+        "d3r_eticlopride_gpcrmd_events_combined.csv",
+        "d3r_eticlopride_gpcrmd_summary.csv",
+        "d3r_eticlopride_residue_contact_summary.csv",
+        "d3r_eticlopride_residue_contacts_combined.csv"
+      ],
+      "steps": [
+        {
+          "title": "Import the case files",
+          "instruction": "Extract the input ZIP and read LAB_NOTES.txt beside the files/ folder. In ClaimTrace, click Choose files on the welcome page, or Start with files in an open package. Select all 5 files inside files/. Enter the package name below and click Create package.",
+          "fields": [
+            {
+              "label": "Package name",
+              "value": "Figure 4F — Compare trajectory repeats"
+            }
+          ],
+          "expected": "Saved locally · 5 files appears, and the figure is displayed.",
+          "screenshots": [
+            "images/f3-f/01-01.png"
+          ],
+          "caption": "Import all 5 supplied files into a new working draft."
+        },
+        {
+          "title": "Describe the analysis plot",
+          "instruction": "Click Set figure type. Choose Analysis plot, enter the plot context, then click Save details.",
+          "fields": [
+            {
+              "label": "View type",
+              "value": "Analysis plot"
+            },
+            {
+              "label": "Plot settings",
+              "value": "Three D3R-eticlopride repeats. Top: Asp110-ligand distance with a 4 angstrom threshold; middle: ligand RMSD, sampled every 0.2 ns. Bottom: selected residue contact states every 1 ns, green = present."
+            }
+          ],
+          "expected": "Saved figure · Settings recorded appears below the figure.",
+          "screenshots": [
+            "images/f3-f/02-01.png"
+          ],
+          "caption": "Analysis plot records the axes, sampling and visual key for this figure."
+        },
+        {
+          "title": "Write the figure statement",
+          "instruction": "Click Add claim. Enter the statement and figure label, choose Trajectory or mechanism, then click Save claim.",
+          "fields": [
+            {
+              "label": "Figure statement",
+              "value": "At a 4 angstrom Asp110-ligand distance threshold, the three repeats have occupancies of 0.7616, 0.9936 and 0.9996."
+            },
+            {
+              "label": "Figure label",
+              "value": "Figure 4F"
+            },
+            {
+              "label": "Statement type",
+              "value": "Trajectory or mechanism"
+            }
+          ],
+          "expected": "The statement appears in the claim list and above the figure.",
+          "screenshots": [
+            "images/f3-f/03-01.png"
+          ],
+          "caption": "Save a statement that can be checked against the linked sources."
+        },
+        {
+          "title": "Choose the evidence and source files",
+          "instruction": "Click Add evidence. Choose Trajectory analysis. Check the source files listed below. Scroll within Source files when needed.",
+          "fields": [
+            {
+              "label": "Evidence type",
+              "value": "Trajectory analysis"
+            },
+            {
+              "label": "Source files",
+              "value": "d3r_eticlopride_gpcrmd_events_combined.csv\nd3r_eticlopride_gpcrmd_summary.csv\nd3r_eticlopride_residue_contact_summary.csv\nd3r_eticlopride_residue_contacts_combined.csv"
+            }
+          ],
+          "expected": "Source files shows 4 selected.",
+          "screenshots": [
+            "images/f3-f/04-01.png"
+          ],
+          "caption": "Link the event or occupancy results used for this statement."
+        },
+        {
+          "title": "Record the result and analysis settings",
+          "instruction": "Enter the check name and its numerical result. Use the expanded Analysis settings — Frames and replicates section to record the sampling and scope. Click Save evidence.",
+          "fields": [
+            {
+              "label": "How was it checked?",
+              "value": "Review the supplied distance-state, contact-state and replicate-summary tables."
+            },
+            {
+              "label": "What did you find?",
+              "value": "The distance tables contain 7,500 frames. The three repeats satisfy the 4 angstrom condition in 1,904, 2,484 and 2,499 of 2,500 frames. Their exact occupancies are 0.7616, 0.9936 and 0.9996. The separate contact table contains 41,000 residue-frame states."
+            },
+            {
+              "label": "Selections, cutoffs and sampling",
+              "value": "Three repeats. Distance and RMSD: 2,500 frames per repeat at 0.2 ns intervals, 0-499.8 ns. Residue contacts: 500 frames per repeat at 1 ns intervals, 0-499 ns. Asp110-ligand distance threshold: 4 angstrom; contact cutoff: 4.5 angstrom; frame-zero pocket: 6.5 angstrom."
+            }
+          ],
+          "expected": "The page confirms Evidence saved, and Evidence & sources shows 1 record.",
+          "screenshots": [
+            "images/f3-f/05-01.png"
+          ],
+          "caption": "The evidence form links the result to its method and settings."
+        },
+        {
+          "title": "State the interpretation limit",
+          "instruction": "Click Add limitation. Keep Write your own selected, enter the limitation below, then click Save limitation.",
+          "fields": [
+            {
+              "label": "What limits this conclusion?",
+              "value": "Repeat 3 satisfies the distance condition in 2,499 of 2,500 frames; its occupancy rounds to 1.000 at three decimal places. Independent trajectory analysis requires the original topology and coordinate trajectories."
+            }
+          ],
+          "expected": "Limitation saved appears, and the uncertainty entry is linked to the claim.",
+          "screenshots": [
+            "images/f3-f/06-01.png"
+          ],
+          "caption": "Record the precise scope of the supplied evidence."
+        },
+        {
+          "title": "Read the five-part claim audit",
+          "instruction": "Click Review. Read Claim, Visual evidence, Provenance, Uncertainty and Reproducibility. Compare the numerical values and scope with your source notes.",
+          "fields": [],
+          "expected": "Visual evidence, Uncertainty and Reproducibility read Recorded. Provenance reads Review needed because the original trajectory/topology inputs remain open.",
+          "screenshots": [
+            "images/f3-f/07-01.png"
+          ],
+          "caption": "The audit brings the statement, figure, sources and limitation together."
+        },
+        {
+          "title": "Check the working draft",
+          "instruction": "Click Export. Keep Working draft selected. Expand the open record questions to see the remaining work.",
+          "fields": [
+            {
+              "label": "Purpose",
+              "value": "Working draft"
+            }
+          ],
+          "expected": "Draft checks passed; 1 open record question requests the inputs and settings behind the trajectory claim.",
+          "screenshots": [
+            "images/f3-f/08-01.png"
+          ],
+          "caption": "The draft retains its open questions for the next author or reader."
+        },
+        {
+          "title": "Download the review package",
+          "instruction": "Click Download package · ZIP. Check your browser’s downloads for claimtrace-review.zip, then save it with your figure. The ZIP contains the source files, claim record and recipient instructions.",
+          "fields": [],
+          "expected": "The page confirms: Export checks passed. Your browser will download the package.",
+          "screenshots": [
+            "images/f3-f/09-01.png"
+          ],
+          "caption": "The browser confirms that the saved package passed its export checks."
+        }
+      ],
+      "outcome": "One Figure 4F claim with 4 linked evidence files and one recorded limitation, exported as a Working draft ZIP.",
+      "open_questions": [
+        "Add the original topology and trajectory files to support independent analysis.",
+        "Record the atom selections, sampling and software used when repeating the trajectory analysis.",
+        "Retain the third occupancy as 0.9996 when comparing repeats; the article table rounds it to 1.000."
+      ],
+      "download_zip": "downloads/f3-f-completed.zip",
+      "input_zip": "downloads/f3-f-inputs.zip"
+    }
+  ],
+  "recipient": {
+    "id": "recipient",
+    "title": "Open and continue a review package",
+    "article": "Shared workflow",
+    "category": "Read a package",
+    "goal": "Inspect a completed example, add a reader note, and export your own working copy.",
+    "inputs": [],
+    "steps": [
+      {
+        "title": "Open the extracted package",
+        "instruction": "Download the Figure 1B6 completed example and extract the ZIP. In ClaimTrace, click Open package. Paste the path of the extracted package folder on the computer running ClaimTrace, then click Open package. The path below is the folder used for this walkthrough.",
+        "fields": [
+          {
+            "label": "Package folder path",
+            "value": "/tmp/ClaimTrace-review-example/f1-b6"
+          }
+        ],
+        "expected": "Shared package · 6 files appears. The page explains that saving changes creates a working copy.",
+        "screenshots": [
+          "images/recipient/01-01.png"
+        ],
+        "caption": "Point to the extracted folder that contains semantic_layer.json."
+      },
+      {
+        "title": "Read the claim audit",
+        "instruction": "Click Review. Read the figure statement and the five audit rows. Check the saved figure alongside the interpretation.",
+        "fields": [],
+        "expected": "The alternate AP5 view is linked to its claim. Reproducibility includes Replay pending.",
+        "screenshots": [
+          "images/recipient/02-01.png"
+        ],
+        "caption": "The compact audit keeps the figure, sources and interpretation together."
+      },
+      {
+        "title": "Inspect the provenance",
+        "instruction": "Click the Provenance row. Scroll to Evidence & sources to read the saved finding, source list and analysis settings.",
+        "fields": [],
+        "expected": "Evidence & sources shows the alternate-view source inspection and its linked files.",
+        "screenshots": [
+          "images/recipient/03-01.png"
+        ],
+        "caption": "The provenance row opens the supporting record."
+      },
+      {
+        "title": "Read the scene source",
+        "instruction": "Click View scene source below the figure. Inspect the load, selection and set_view commands. Use Download beside the source selector to save the original file when needed.",
+        "fields": [],
+        "expected": "Scene source opens with the PML text and its saved camera command.",
+        "screenshots": [
+          "images/recipient/04-01.png"
+        ],
+        "caption": "The source preview shows the recorded scene commands."
+      },
+      {
+        "title": "Add a reader note",
+        "instruction": "Click the Uncertainty row, then Add limitation. Keep Write your own selected and enter the note below.",
+        "fields": [
+          {
+            "label": "What limits this conclusion?",
+            "value": "Recipient note: The saved PSE documents the recorded camera. Verify this view in PyMOL before marking scene replay complete."
+          }
+        ],
+        "expected": "The note is ready to save with the current claim.",
+        "screenshots": [
+          "images/recipient/05-01.png"
+        ],
+        "caption": "Keep the next replay check attached to the interpretation."
+      },
+      {
+        "title": "Save your working copy",
+        "instruction": "Click Save limitation. Check the location label and confirmation message.",
+        "fields": [],
+        "expected": "The location shows Saved locally · 6 files. The page confirms: Changes saved in a working copy.",
+        "screenshots": [
+          "images/recipient/06-01.png"
+        ],
+        "caption": "The local copy contains the reader note; the extracted received package retains its original contents."
+      },
+      {
+        "title": "Check the updated draft",
+        "instruction": "Click Export. Keep Working draft selected and confirm Draft checks passed.",
+        "fields": [],
+        "expected": "Download package · ZIP is available.",
+        "screenshots": [
+          "images/recipient/07-01.png"
+        ],
+        "caption": "Prepare the copy that includes your new note."
+      },
+      {
+        "title": "Download the updated package",
+        "instruction": "Click Download package · ZIP. Check your browser’s downloads for claimtrace-review.zip, then save it in a folder for your reviewed copy.",
+        "fields": [],
+        "expected": "The page confirms: Export checks passed. Your browser will download the package.",
+        "screenshots": [
+          "images/recipient/08-01.png"
+        ],
+        "caption": "The exported copy includes both the original limitation and the reader note."
+      }
+    ],
+    "outcome": "A new Working draft ZIP containing the recipient note. The received package remains byte-for-byte unchanged.",
+    "open_questions": [
+      "Open the scene in its original molecular viewer to complete the scene-replay check."
+    ],
+    "download_zip": "downloads/recipient-completed.zip"
+  }
+}

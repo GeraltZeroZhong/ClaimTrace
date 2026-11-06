@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f6f7f5" />
+    <title>ClaimTrace · Figure review</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to workspace</a>
+    <header class="app-header">
+      <a class="brand" href="/" aria-label="ClaimTrace workspace"
+        >ClaimTrace<span class="brand-divider"></span
+        ><span class="brand-caption">Figure review</span></a
+      >
+      <div class="header-actions">
+        <span class="local-label"><i></i>Local workspace</span>
+        <div class="mode-switch" role="group" aria-label="Interface mode">
+          <button data-mode="simple" aria-pressed="true">Basic</button
+          ><button data-mode="expert" aria-pressed="false">Expert</button>
+        </div>
+      </div>
+      <nav class="package-actions" aria-label="Packages">
+        <button class="text-button" data-action="help">How it works</button>
+        <button class="text-button" data-action="examples">Examples</button>
+        <button class="text-button" data-action="open-path">
+          Open package
+        </button>
+        <button class="button secondary small" data-action="pick-import">
+          Start with files
+        </button>
+      </nav>
+    </header>
+    <main id="main" tabindex="-1">
+      <div class="loading-screen" role="status">Opening workspace…</div>
+    </main>
+    <div
+      id="live-status"
+      class="toast"
+      role="status"
+      aria-live="polite"
+      hidden
+    ></div>
+    <dialog id="dialog" aria-labelledby="dialog-title">
+      <div id="dialog-content"></div>
+    </dialog>
+    <input
+      type="file"
+      id="import-files"
+      multiple
+      hidden
+    />
+    <noscript
+      >Enable JavaScript to use the interface, or run claimtrace inspect and
+      claimtrace validate in your terminal.</noscript
+    >
+  </body>
+</html>

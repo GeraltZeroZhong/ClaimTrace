@@ -11,3 +11,9 @@ dist/
 .coverage
 htmlcov/
 .DS_Store
+.internal/
+/claimtrace-workspace/
+/.internal/
+/release-assets/
+/wheel-env/
+/sdist-check/

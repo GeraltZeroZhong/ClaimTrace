@@ -5,8 +5,24 @@ import zipfile
 from claimtrace.api import init_package
 from claimtrace.completion import apply_answers
 from claimtrace.export.readme import render_readme
-from claimtrace.models.semantic_layer import Waiver
+from claimtrace.models.semantic_layer import Entity, Waiver
 from claimtrace.validation.engine import validate_package
+
+
+def test_static_plot_handoff_keeps_reproduction_with_its_analysis_tools(tmp_path):
+    from claimtrace.models.semantic_layer import Scene
+
+    pkg = init_package(blank=True, out=tmp_path / "plot")
+    pkg.semantic_layer.scenes.append(Scene(
+        id="scene:plot", extensions={"view_kind": "plot"},
+        camera={"author_context": "Time in ns; 1 ns sampling interval."},
+    ))
+    text = render_readme(pkg.semantic_layer, pkg.validate("draft"))
+    assert "original analysis or figure-assembly tools" in text
+    assert "Time in ns; 1 ns sampling interval." in text
+    assert "Attach a saved viewer scene" not in text
+    assert "Replay only native scripts" not in text
+    assert "Viewer loading, selections" not in text
 
 
 def test_readme_does_not_show_confirmed_operation_as_unconfirmed(tmp_path: Path):
@@ -44,12 +60,12 @@ def test_readme_does_not_show_confirmed_operation_as_unconfirmed(tmp_path: Path)
     report = validate_package(pkg.root, mode="archive")
     text = render_readme(pkg.semantic_layer, report)
 
-    assert "## Review Summary" in text
-    assert "## Evidence Summary" in text
-    assert "## Visual Meaning Summary" in text
-    assert "## Open Items / Limits" in text
+    assert "## Review summary" in text
+    assert "## Evidence summary" in text
+    assert "## Visual meanings" in text
+    assert "## Open items and limits" in text
     assert "Author confirmed: magenta marks the ligand discussed in this panel" in text
-    assert "Tool suggestion (unconfirmed): Color may highlight the ligand" not in text
+    assert "Suggested meaning awaiting review: Color may highlight the ligand" not in text
     assert "Author confirmed: magenta marks the ligand discussed in this panel Confirmation needed." not in text
     assert "{'json_pointer'" not in text
     assert "validation_report.json" in text
@@ -141,3 +157,23 @@ def test_readme_distinguishes_recorded_and_applied_waivers(tmp_path: Path):
     assert "Waiver records: 1" in text
     assert "Findings waived: 0" in text
     assert "with 1 waiver" not in text
+
+
+def test_recipient_readme_opens_gui_and_distinguishes_recorded_from_figure_central(tmp_path: Path):
+    pml = tmp_path / "site.pml"
+    pml.write_text("select site, chain A and resi 42+85\n", encoding="utf-8")
+    pkg = init_package(native=pml, out=tmp_path / "pkg")
+    pkg.semantic_layer.entities.append(Entity(
+        id="entity:site", entity_type="residue", label="Chain A residues 42 and 85",
+    ))
+    pkg.save()
+    report = validate_package(pkg.root, mode="draft")
+    text = render_readme(pkg.semantic_layer, report)
+
+    assert "extracted package folder" in text
+    assert "claimtrace gui ." in text
+    assert "Recorded molecules: 1; selections: 1." in text
+    assert "under `entities` and `selections` in `semantic_layer.json`" in text
+    assert "Entries marked figure-central:\n\n0 marked." in text
+    assert "Imported scene instructions preserve visual context" in text
+    assert "Assess claim support from linked source files and author-reviewed observations" in text

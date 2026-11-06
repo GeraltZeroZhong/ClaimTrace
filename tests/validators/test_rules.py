@@ -1,5 +1,6 @@
 import json
 import zipfile
+import pytest
 from pathlib import Path
 
 from PIL import Image
@@ -277,6 +278,24 @@ def test_ligand_measurement_needs_structured_context(tmp_path: Path):
     assert any(item.rule_id == "CLAIM.LIGAND.REQUIRED_CONTACTS" for item in report.findings)
 
 
+def test_measured_distance_is_distinct_from_contact_cutoff():
+    from claimtrace.models.semantic_layer import Evidence
+    from claimtrace.validation.engine import _valid_distance_context
+
+    measurement = Evidence(
+        id="measured:pair", evidence_kind="measurement",
+        parameters={"measured_distance": 3.0}, units={"distance": "angstrom"},
+    )
+    assert _valid_distance_context(measurement)
+    measurement.evidence_kind = "contact_table"
+    assert not _valid_distance_context(measurement)
+    measurement.thresholds = {"distance": 3.5}
+    assert _valid_distance_context(measurement)
+    measurement.evidence_kind = "measurement"
+    measurement.parameters = {"measured_distance": -1}
+    assert not _valid_distance_context(measurement)
+
+
 def test_validate_reports_non_object_semantic_json(tmp_path: Path):
     package = tmp_path / "pkg"
     package.mkdir()
@@ -372,6 +391,13 @@ def test_trajectory_claim_requires_trajectory_topology_and_analysis(tmp_path: Pa
     report = validate_package(pkg.root, mode="archive")
 
     assert any(item.rule_id == "CLAIM.TRAJECTORY.REQUIRED_CONTEXT" for item in report.findings)
+    from claimtrace.workflow import review_package
+
+    state = review_package(pkg.root)
+    task = next(t for t in state["workflow"]["tasks"] if "CLAIM.TRAJECTORY.REQUIRED_CONTEXT" in t["rule_ids"])
+    assert task["action"] == "attach"
+    assert "topology" in task["title"] and "trajectory" in task["title"]
+    assert state["report"]["summary"]["blocking_errors"] == 0
 
 
 def test_density_claim_requires_map_and_parameterized_fit_evidence(tmp_path: Path):
@@ -848,6 +874,7 @@ def test_density_claim_recognizes_verified_structure_and_map_inside_mvsx(tmp_pat
     report = validate_package(pkg.root, mode="archive")
 
     assert not any(item.rule_id == "CLAIM.DENSITY.REQUIRED_CONTEXT" for item in report.findings)
+    assert report.claim_traceability_matrix[0]["required_evidence_status"] == "complete"
 
 
 def test_model_comparison_requires_two_distinct_structure_digests(tmp_path: Path):
@@ -885,6 +912,63 @@ def test_model_comparison_requires_two_distinct_structure_digests(tmp_path: Path
         item.rule_id == "CLAIM.MODEL_COMPARISON.REQUIRED_CONTEXT"
         for item in report.findings
     )
+    assert report.claim_traceability_matrix[0]["required_evidence_status"] == "missing"
+
+
+@pytest.mark.parametrize("claim_type,distinct", [
+    ("computed_model_claim", True),
+    ("model_comparison", True),
+    ("model_comparison", False),
+    ("trajectory_mechanism", True),
+])
+def test_embedded_evidence_gate_and_matrix_agree(tmp_path, claim_type, distinct):
+    files = {"model.cif": b"data_model\n"}
+    if claim_type == "model_comparison":
+        files["second.cif"] = b"data_second\n" if distinct else files["model.cif"]
+    if claim_type == "trajectory_mechanism":
+        files = {"trajectory.xtc": b"synthetic trajectory", "topology.top": b"synthetic topology"}
+    children = []
+    for filename in files:
+        entry = {"kind": "download", "params": {"url": filename}}
+        if filename.endswith(".cif"):
+            entry["children"] = [{
+                "kind": "parse", "params": {"format": "mmcif"},
+                "children": [{"kind": "structure", "params": {"type": "model"}}],
+            }]
+        children.append(entry)
+    archive = tmp_path / "scene.mvsx"
+    with zipfile.ZipFile(archive, "w") as handle:
+        handle.writestr("index.mvsj", json.dumps({
+            "metadata": {"version": "1"}, "root": {"kind": "root", "children": children},
+        }))
+        for filename, content in files.items():
+            handle.writestr(filename, content)
+    pkg = init_package(native=archive, out=tmp_path / "pkg")
+    source_ids = [pkg.semantic_layer.artifacts[0].id]
+    if claim_type == "computed_model_claim":
+        report_file = tmp_path / "confidence.txt"
+        report_file.write_text("Synthetic confidence report for the supplied model.")
+        source_ids.append(pkg.add_artifact(report_file, role="validation_report").id)
+    evidence = {
+        "evidence_kind": "trajectory_analysis" if claim_type == "trajectory_mechanism" else "external_validation",
+        "method_name": "Synthetic reproducibility check", "result_summary": "The packaged inputs were reviewed.",
+        "source_artifact_ids": source_ids,
+    }
+    if claim_type == "trajectory_mechanism":
+        evidence["parameters"] = {"frame_range": [0, 9], "replicate_count": 1}
+    apply_answers(pkg.root, pkg.semantic_layer, {
+        "claim": {"claim_text": "The figure summarizes the recorded analysis.", "claim_type": claim_type, "figure_ref": "Figure 1"},
+        "evidence": [evidence], "uncertainty": [], "reuse": {},
+    })
+    pkg.save()
+    report = validate_package(pkg.root, mode="archive")
+    rule = {
+        "computed_model_claim": "CLAIM.COMPUTED_MODEL.REQUIRED_VALIDATION",
+        "model_comparison": "CLAIM.MODEL_COMPARISON.REQUIRED_CONTEXT",
+        "trajectory_mechanism": "CLAIM.TRAJECTORY.REQUIRED_CONTEXT",
+    }[claim_type]
+    assert any(item.rule_id == rule for item in report.findings) is (not distinct)
+    assert report.claim_traceability_matrix[0]["required_evidence_status"] == ("complete" if distinct else "missing")
 
 
 def test_invalid_waiver_metadata_does_not_waive_finding(tmp_path: Path):
@@ -911,3 +995,38 @@ def test_invalid_waiver_metadata_does_not_waive_finding(tmp_path: Path):
     )
 
     assert finding.status == "FAIL"
+
+
+@pytest.mark.parametrize("distance", ["Infinity", "inf", "1e999", 10**400])
+def test_distance_context_requires_finite_representable_value(distance):
+    from claimtrace.models import Evidence
+    from claimtrace.validation.engine import _valid_distance_context
+
+    evidence = Evidence(id="evidence:distance", evidence_kind="measurement",
+                        parameters={"measured_distance": distance}, units={"distance": "angstrom"})
+    assert not _valid_distance_context(evidence)
+
+
+@pytest.mark.parametrize("unit", ["TODO", "n/a", "none"])
+def test_distance_context_requires_recorded_unit(unit):
+    from claimtrace.models import Evidence
+    from claimtrace.validation.engine import _valid_distance_context
+
+    evidence = Evidence(id="evidence:distance", evidence_kind="contact_table",
+                        thresholds={"distance": 4.0}, units={"distance": unit})
+    assert not _valid_distance_context(evidence)
+
+
+@pytest.mark.parametrize("identity", [None, "", "unknown", "TODO", "   "])
+def test_resolved_native_reference_requires_an_actual_identity(identity):
+    from claimtrace.models import NativeReference, SemanticLayer
+    from claimtrace.validation.engine import _native_scene_anchor_findings
+
+    semantic = SemanticLayer.new("identity")
+    semantic.native_references = [NativeReference(
+        native_ref_id="ref:chain", native_expression="chain A", ref_type="chain",
+        stable_identity=identity, identity_status="resolved", claim_critical="true",
+        target_resolution_status="resolved_against_artifact",
+    )]
+    issues = _native_scene_anchor_findings(semantic, "archive")
+    assert any(issue.rule_id == "SCENE.MOLECULAR_IDENTITY_UNCONFIRMED" for issue in issues)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import stat
 import unicodedata
@@ -29,7 +30,6 @@ from claimtrace.models.semantic_layer import (
 from claimtrace.models.validation import SemanticLayerRef, ValidationFinding, ValidationReport
 from claimtrace.package.checksums import (
     directory_size,
-    file_size,
     is_sha256_digest,
     sha256_directory,
     sha256_file,
@@ -290,12 +290,13 @@ def validate_package(root: Path, mode: str = "draft", *, revalidation: dict[str,
                 )
             )
             semantic = None
+    artifact_observations: dict[int, tuple[bool, str | None]] = {}
     if semantic is not None:
         tree_findings = _package_tree_findings(root)
         findings.extend(tree_findings)
         if not tree_findings:
             findings.extend(_checksum_manifest_findings(root))
-        findings.extend(_fixity_findings(root, semantic))
+        findings.extend(_fixity_findings(root, semantic, artifact_observations))
         findings.extend(_reference_findings(semantic))
         findings.extend(_claim_findings(semantic))
         findings.extend(_visibility_findings(semantic))
@@ -311,12 +312,16 @@ def validate_package(root: Path, mode: str = "draft", *, revalidation: dict[str,
         semantic=semantic,
         root=root,
         revalidation=revalidation,
+        artifact_observations=artifact_observations,
     )
 
 
-def _fixity_findings(root: Path, semantic: SemanticLayer) -> list[ValidationFinding]:
+def _fixity_findings(
+    root: Path, semantic: SemanticLayer, observations: dict[int, tuple[bool, str | None]]
+) -> list[ValidationFinding]:
     findings: list[ValidationFinding] = []
     for index, artifact in enumerate(semantic.artifacts):
+        observations[index] = (False, None)
         pointer = f"/artifacts/{index}"
         kind_errors: list[str] = []
         if artifact.kind == ArtifactKind.remote:
@@ -432,7 +437,11 @@ def _fixity_findings(root: Path, semantic: SemanticLayer) -> list[ValidationFind
                     )
                 )
             continue
-        if not path.exists():
+        try:
+            artifact_stat = path.stat()
+        except OSError:
+            artifact_stat = None
+        if artifact_stat is None:
             findings.append(
                 finding(
                     "G2.FIXITY.MISSING_FILE",
@@ -447,6 +456,7 @@ def _fixity_findings(root: Path, semantic: SemanticLayer) -> list[ValidationFind
                 )
             )
             continue
+        observations[index] = (True, None)
         if artifact.role == ArtifactRole.render_image:
             try:
                 from claimtrace.importers.image import inspect_image
@@ -466,9 +476,11 @@ def _fixity_findings(root: Path, semantic: SemanticLayer) -> list[ValidationFind
                         fix="Replace the file with a valid PNG, JPEG, GIF, TIFF, WebP or well-formed SVG and re-register it.",
                     )
                 )
-        if path.is_file() or path.is_dir():
-            actual_hash = sha256_directory(path) if path.is_dir() else sha256_file(path)
-            actual_size = directory_size(path) if path.is_dir() else file_size(path)
+        is_directory = stat.S_ISDIR(artifact_stat.st_mode)
+        if stat.S_ISREG(artifact_stat.st_mode) or is_directory:
+            actual_hash = sha256_directory(path) if is_directory else sha256_file(path)
+            actual_size = directory_size(path) if is_directory else artifact_stat.st_size
+            observations[index] = (True, actual_hash)
             if artifact.sha256 != actual_hash:
                 findings.append(
                     finding(
@@ -586,8 +598,9 @@ def _package_tree_findings(root: Path) -> list[ValidationFinding]:
             )
         ]
     portable_paths: dict[str, str] = {}
+    root_resolved = root.resolve()
     for path in paths:
-        relative = path.relative_to(root.resolve()).as_posix()
+        relative = path.relative_to(root_resolved).as_posix()
         portable = unicodedata.normalize("NFC", relative).casefold()
         previous = portable_paths.get(portable)
         if previous is not None and previous != relative:
@@ -791,6 +804,20 @@ def _reference_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
         | agent_ids
         | member_ids
     )
+    # Agent proposals and retained record snapshots are provenance objects.
+    # Historical snapshots resolve activity outputs after a reviewed reversion;
+    # live scientific links still use the current typed-record ID sets above.
+    proposal_object_ids: set[str] = set()
+    proposals = semantic.extensions.get("agent_proposals_v1", [])
+    if isinstance(proposals, list):
+        for proposal in proposals:
+            if not isinstance(proposal, dict):
+                continue
+            if isinstance(proposal.get("id"), str):
+                proposal_object_ids.add(proposal["id"])
+            for snapshot in proposal.get("applied_records", []):
+                if isinstance(snapshot, dict) and isinstance(snapshot.get("record_id"), str):
+                    proposal_object_ids.add(snapshot["record_id"])
     duplicate_collections = [
         ("claims", semantic.claims, "id"),
         ("scenes", semantic.scenes, "id"),
@@ -1122,7 +1149,7 @@ def _reference_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
         _missing_refs(
             findings,
             activity.generated_ids,
-            all_object_ids,
+            all_object_ids | proposal_object_ids,
             f"/provenance/activities/{index}/generated_ids",
             "generated object",
         )
@@ -1507,7 +1534,7 @@ def _claim_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
                     blocks=["share", "archive"],
                     claim_critical=True,
                     waivable=True,
-                    fix="Link a structure plus contact table/measured distances with method and cutoff, or a relevant validation report.",
+                    fix="Link the structure and a contact table with its cutoff, measured distances with units, or a relevant validation report. Record the method and target atoms or selections.",
                 )
             )
         if claim.claim_type == ClaimType.ligand_binding_pose:
@@ -1543,6 +1570,7 @@ def _claim_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
                 )
         if claim.claim_type == ClaimType.trajectory_mechanism:
             roles = _package_roles(semantic)
+            missing_inputs = sorted({"trajectory", "topology"} - roles)
             has_analysis = any(
                 _trajectory_analysis_is_complete(semantic, item, claim.id)
                 for item in semantic.evidence
@@ -1555,12 +1583,16 @@ def _claim_findings(semantic: SemanticLayer) -> list[ValidationFinding]:
                         "L3_CLAIM_EVIDENCE",
                         "ERROR",
                         "CLAIM_EVIDENCE_ERROR",
-                        "A trajectory-mechanism claim needs trajectory, topology and linked trajectory-analysis evidence with method, frame/sampling and replicate context.",
+                        f"Original {' and '.join(missing_inputs)} files are needed for trajectory reproduction."
+                        if missing_inputs else
+                        "Complete the linked trajectory analysis with its method, structured frame/sampling and replicate context.",
                         pointer=f"{pointer}/evidence_ids",
                         blocks=["share", "archive"],
                         claim_critical=True,
                         waivable=True,
-                        fix="Attach trajectory/topology files and record the analysis method, selected frames/sampling window and replicate count.",
+                        fix="Attach the original inputs and link them to the analysis evidence. Preserve the recorded method and sampling settings."
+                        if missing_inputs else
+                        "Link the trajectory and topology to a reviewed trajectory_analysis entry. Record its method, frame_range or sampling_window, and replicate_count in evidence.parameters.",
                     )
                 )
         if claim.claim_type in {ClaimType.cryo_em_map_fit, ClaimType.xray_density_support}:
@@ -1894,14 +1926,17 @@ def _visual_semantics_is_author_reviewed(item: Any) -> bool:
 
 def _valid_distance_context(evidence: Any) -> bool:
     threshold = getattr(evidence, "thresholds", {}).get("distance")
+    if evidence.evidence_kind == EvidenceKind.measurement:
+        threshold = getattr(evidence, "parameters", {}).get("measured_distance", threshold)
     unit = str(getattr(evidence, "units", {}).get("distance", "")).strip().lower()
-    if unit in {"", "unknown", "unspecified"}:
+    if not _text_is_recorded(unit):
         return False
     if isinstance(threshold, bool):
         return False
     try:
-        return float(threshold) > 0
-    except (TypeError, ValueError):
+        distance = float(threshold)
+        return math.isfinite(distance) and distance > 0
+    except (TypeError, ValueError, OverflowError):
         return False
 
 
@@ -2097,7 +2132,9 @@ def _native_scene_anchor_findings(semantic: SemanticLayer, mode: str) -> list[Va
                 )
             )
     for index, ref in enumerate(semantic.native_references):
-        if ref.claim_critical == ClaimCriticalStatus.true and ref.identity_status != "resolved":
+        if ref.claim_critical == ClaimCriticalStatus.true and (
+            ref.identity_status != "resolved" or not _text_is_recorded(ref.stable_identity)
+        ):
             findings.append(
                 finding(
                     "SCENE.MOLECULAR_IDENTITY_UNCONFIRMED",
@@ -2121,7 +2158,7 @@ def _native_scene_anchor_findings(semantic: SemanticLayer, mode: str) -> list[Va
                     "L1_SEMANTIC_LINKABILITY",
                     "ERROR",
                     "REVIEWABILITY_ERROR",
-                    f"This figure-central native reference has not been matched to a package file: {ref.native_expression}.",
+                    f"Match this figure-central scene reference to a package file: {ref.native_expression}.",
                     pointer=f"/native_references/{index}/target_resolution_status",
                     blocks=["archive"],
                     claim_critical=True,
@@ -2181,7 +2218,7 @@ def _native_scene_anchor_findings(semantic: SemanticLayer, mode: str) -> list[Va
                 else f"This resource needs a local file, checksum or documented reason before archive export: {display_uri}."
             )
             fix = (
-                "Rebuild the MVSX with the file at the referenced archive path; an external sibling file does not make the archive self-contained."
+                "Include the file inside the MVSX at its referenced archive path, then rebuild the archive."
                 if missing_archive_member
                 else "Attach the resource, record an expected checksum, or record why it can remain detached."
             )
@@ -2299,8 +2336,9 @@ def _privacy_findings(root: Path, semantic: SemanticLayer, mode: str) -> list[Va
                     )
                 )
                 break
+    root_resolved = root.resolve()
     for file_path in safe_walk(root):
-        relative = file_path.relative_to(root.resolve()).as_posix()
+        relative = file_path.relative_to(root_resolved).as_posix()
         if relative == SEMANTIC_LAYER_FILENAME:
             continue
         try:
@@ -2393,6 +2431,7 @@ def _report(
     semantic: SemanticLayer | None,
     root: Path,
     revalidation: dict[str, object] | None = None,
+    artifact_observations: dict[int, tuple[bool, str | None]] | None = None,
 ) -> ValidationReport:
     summary = {"errors": 0, "warnings": 0, "info": 0}
     blocking_errors = 0
@@ -2409,6 +2448,7 @@ def _report(
         else:
             summary["info"] += 1
     status = "fail" if blocking_errors else "pass_with_warnings" if warnings else "pass"
+    summary["blocking_errors"] = blocking_errors
     return ValidationReport(
         package_id=package_id,
         semantic_layer_ref=semantic_ref,
@@ -2418,15 +2458,15 @@ def _report(
         summary=summary,
         findings=findings,
         claim_traceability_matrix=_traceability_matrix(semantic),
-        artifact_fixity=_artifact_fixity(root, semantic),
+        artifact_fixity=_artifact_fixity(semantic, artifact_observations or {}),
         entity_evidence_matrix=_entity_evidence_matrix(semantic),
         unresolved_list=_unresolved(semantic),
         native_inference_limits=[
-            "Native viewer files were parsed statically; the viewer was not run, so successful loading, non-empty selections and rendered pixels were not runtime-verified.",
-            "Visualization operations are context, not scientific support; support comes from claim-linked evidence files and author-reviewed notes.",
-            "Distance commands are measurement intent and are not automatically classified as hydrogen bonds or contacts.",
+            "Saved scene files record instructions. Verify loading, selections and rendered output by replaying them in the original viewer.",
+            "Scene operations describe the view. Assess the scientific claim using linked evidence and reviewed observations.",
+            "Distance commands record a requested measurement. Link the measured result and interaction criteria to the claim.",
             "Selection names such as active_site remain native labels until confirmed by the author.",
-            "A color ramp over atom field b does not identify whether the values are crystallographic B-factors, pLDDT or custom values.",
+            "Record whether atom field b contains crystallographic B-factors, pLDDT or another quantity before interpreting its color ramp.",
             "Automatic privacy scanning covers package metadata and UTF-8 text attachments up to 2 MiB; binary and larger files still need manual review.",
         ],
         evidence_minimums_by_profile=_evidence_minimums(),
@@ -2507,26 +2547,15 @@ def _traceability_matrix(semantic: SemanticLayer | None) -> list[dict[str, objec
     return matrix
 
 
-def _artifact_fixity(root: Path, semantic: SemanticLayer | None) -> list[dict[str, object]]:
+def _artifact_fixity(
+    semantic: SemanticLayer | None, observations: dict[int, tuple[bool, str | None]]
+) -> list[dict[str, object]]:
+    """Present the file observations already made during this validation call."""
     if semantic is None:
         return []
     rows = []
-    for artifact in semantic.artifacts:
-        exists = False
-        actual_sha = None
-        if artifact.path and artifact.kind == ArtifactKind.local_attached:
-            try:
-                path = resolve_package_path(root, artifact.path)
-                exists = path.exists()
-                actual_sha = (
-                    sha256_directory(path)
-                    if path.is_dir()
-                    else sha256_file(path)
-                    if path.is_file()
-                    else None
-                )
-            except Exception:
-                exists = False
+    for index, artifact in enumerate(semantic.artifacts):
+        exists, actual_sha = observations.get(index, (False, None))
         if artifact.kind == ArtifactKind.local_attached:
             status = (
                 "pass"
@@ -2627,24 +2656,27 @@ def _claim_evidence_complete(semantic: SemanticLayer, claim: Any) -> bool:
     if claim.claim_type == ClaimType.ligand_binding_pose:
         return _has_ligand_evidence(semantic, claim.id)
     if claim.claim_type == ClaimType.trajectory_mechanism:
-        roles = {artifact.role.value for artifact in semantic.artifacts}
+        roles = _package_roles(semantic)
         return {"trajectory", "topology"} <= roles and any(
             _trajectory_analysis_is_complete(semantic, item, claim.id)
             for item in semantic.evidence
         )
     if claim.claim_type in {ClaimType.cryo_em_map_fit, ClaimType.xray_density_support}:
-        roles = {artifact.role.value for artifact in semantic.artifacts}
+        roles = _package_roles(semantic)
         return {"map", "structure"} <= roles and any(
             _density_evidence_is_complete(semantic, item, claim.id)
             for item in semantic.evidence
         )
     if claim.claim_type == ClaimType.computed_model_claim:
-        return any(artifact.role.value == "structure" for artifact in semantic.artifacts) and any(
+        return _has_packaged_structure(semantic) and any(
             _computed_model_evidence_is_complete(semantic, item, claim.id)
             for item in semantic.evidence
         )
     if claim.claim_type == ClaimType.model_comparison:
-        return sum(1 for artifact in semantic.artifacts if artifact.role.value == "structure") >= 2 and any(
+        structure_digests = _structure_digests_for_source_ids(
+            semantic, {artifact.id for artifact in semantic.artifacts},
+        )
+        return len(structure_digests) >= 2 and any(
             _model_comparison_evidence_is_complete(semantic, item, claim.id)
             for item in semantic.evidence
         )

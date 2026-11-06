@@ -11,40 +11,64 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          - os: windows-latest
+            python-version: "3.13"
+          - os: macos-latest
+            python-version: "3.13"
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.2.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e .[dev]
+      - name: Require JavaScript test runtime
+        run: node --version
       - name: Test
-        run: python -m pytest -m "not experimental"
+        run: python -m pytest
       - name: Lint
         run: python -m ruff check .
 
-  build:
-    needs: test
+  minimum:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - name: Install minimum runtime dependencies
+        run: python -m pip install -c tests/minimum-requirements.txt -e . pytest
+      - name: Require JavaScript test runtime
+        run: node --version
+      - name: Test minimum dependencies
+        run: python -m pytest
+
+  build:
+    needs: [test, minimum]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.2.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
       - name: Install build tools
-        run: python -m pip install --upgrade pip build twine
+        run: python -m pip install --upgrade pip build twine "readme-renderer[md]"
       - name: Verify release tag matches project version
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -60,10 +84,24 @@ jobs:
       - name: Install wheel smoke
         run: |
           python -m pip install --force-reinstall dist/*.whl
-          claimtrace --version
-          claimtrace schema > /tmp/semantic-layer.schema.json
+          python scripts/smoke_installed.py
+      - name: Test source distribution
+        run: |
+          python -m pip install pytest
+          mkdir sdist-check
+          tar -xzf dist/claimtrace-*.tar.gz -C sdist-check
+          cd sdist-check/claimtrace-*
+          node --version
+          python -m pytest
+      - name: Build release downloads
+        run: python scripts/build_release_assets.py --dist dist --out release-assets
+      - name: Store release downloads
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-downloads
+          path: release-assets/
       - name: Store distributions
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: python-package-distributions
           path: dist/
@@ -80,9 +118,9 @@ jobs:
       contents: read
     steps:
       - name: Download distributions
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: python-package-distributions
           path: dist/
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2

@@ -71,6 +71,8 @@ def load_semantic_layer(root: Path) -> SemanticLayer:
     data = ensure_finite(
         json.loads(path.read_text(encoding="utf-8"), parse_constant=_reject_json_constant)
     )
+    if not isinstance(data, dict):
+        raise PackageError(f"{SEMANTIC_LAYER_FILENAME} must contain a JSON object.")
     if str(data.get("schema_version")) != "0.1.0":
         raise SchemaVersionError(f"Unsupported CAL schema version: {data.get('schema_version')}")
     return SemanticLayer.model_validate(data)
@@ -91,11 +93,17 @@ def read_json(path: Path) -> dict:
 
 def write_json(path: Path, data: object) -> None:
     ensure_finite(data)
+    payload = json.dumps(data, indent=2, sort_keys=False, allow_nan=False) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(data, indent=2, sort_keys=False, allow_nan=False) + "\n",
-        encoding="utf-8",
-    )
+    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+    try:
+        with temporary.open("x", encoding="utf-8") as handle:
+            handle.write(payload)
+        if path.exists():
+            temporary.chmod(stat.S_IMODE(path.stat().st_mode))
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def read_completion_tasks(root: Path) -> list[CompletionTask]:
@@ -105,12 +113,37 @@ def read_completion_tasks(root: Path) -> list[CompletionTask]:
     data = ensure_finite(
         json.loads(path.read_text(encoding="utf-8"), parse_constant=_reject_json_constant)
     )
-    tasks = data.get("tasks", data if isinstance(data, list) else [])
+    tasks = data if isinstance(data, list) else data.get("tasks", [])
     return [CompletionTask.model_validate(item) for item in tasks]
 
 
 def write_completion_tasks(root: Path, tasks: list[CompletionTask]) -> None:
     write_json(root / COMPLETION_TASKS_PATH, {"tasks": [task.model_dump(mode="json") for task in tasks]})
+
+
+def update_completion_tasks(
+    root: Path, semantic: SemanticLayer, answers: dict, *, sections: set[str] | None = None,
+) -> None:
+    """Update answered sections from current records, preserving untouched tasks."""
+    from claimtrace.completion import completed_answer_sections, package_answer_template
+
+    section_fields = {
+        "claim": {"claim", "claims"},
+        "entities": {"entities", "claim", "claims"},
+        "scene": {"scene", "scenes", "scene_semantics_by_operation"},
+        "evidence": {"evidence"},
+        "uncertainty": {"uncertainty"},
+        "reuse": {"reuse"},
+    }
+    touched = {section for section, fields in section_fields.items() if fields.intersection(answers)}
+    if sections is not None:
+        touched.intersection_update(sections)
+    completed = completed_answer_sections(package_answer_template(semantic))
+    tasks = read_completion_tasks(root)
+    for task in tasks:
+        if task.status != "waived" and task.section in touched:
+            task.status = "answered" if task.section in completed else "open"
+    write_completion_tasks(root, tasks)
 
 
 def append_extraction_report(root: Path, importer_name: str, facts: list[dict]) -> None:

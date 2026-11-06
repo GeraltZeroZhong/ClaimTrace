@@ -1,130 +1,155 @@
 # ClaimTrace
 
-Turn a molecular-viewer scene into a clear, self-contained review package.
+Connect a molecular figure statement to its scene, evidence, sources and
+limitations. Review the links, record the settings needed to reproduce the
+view, and share a package that another reader can inspect.
 
-Give ClaimTrace one PyMOL `.pml`, ChimeraX `.cxc`, MolViewSpec `.mvsj`, or
-MolViewSpec `.mvsx` file. It creates an ordinary folder that preserves the
-original scene, lists what the scene contains and references, and gives you an
-editable checklist for recording the figure's message.
+Start with the files you have: a PyMOL `.pml`, ChimeraX `.cxc`, MolViewSpec
+`.mvsj` or `.mvsx` scene, a figure image, a structure, or a results table.
+Add the remaining files and scientific context as your work develops.
+ClaimTrace preserves scene files and their commands. Open them in the original
+molecular viewer to check that they reproduce the view.
 
-One scene file is enough to start. You can add a rendered panel, structure,
-map, table, or supporting result later. ClaimTrace reads scene files locally; it
-does not launch the molecular viewer, run scene commands, or download remote
-resources.
+## Start here
 
-## Quick start: create a draft
-
-### 1. Install ClaimTrace
-
-ClaimTrace requires Python 3.10 or newer. Install it from PyPI:
-
-```bash
-python -m pip install claimtrace
-claimtrace --version
-```
-
-This works in Bash and PowerShell. A virtual environment is optional, but
-useful if you want to keep ClaimTrace separate from other Python tools.
-
-### 2. Create a package
-
-Open a terminal in the folder containing your scene, then run `claimtrace init`.
-For example:
-
-```bash
-claimtrace init "figure_A.pml"
-```
-
-Use the same command with any supported scene format:
-
-```bash
-claimtrace init "figure_A.cxc"
-claimtrace init "figure_A.mvsj"
-claimtrace init "figure_A.mvsx"
-```
-
-ClaimTrace creates `scene-package/`, copies the original scene, records the
-content it can recognize, and writes an `answers.yml` tailored to that scene.
-The terminal prints the paths it created and the next commands to run.
-
-| Scene format | What ClaimTrace records |
+| I want to… | Open this |
 | --- | --- |
-| PyMOL `.pml` | Commands, selections, visual operations, camera state, and referenced files |
-| ChimeraX `.cxc` | Common commands, model and selection references, camera and visibility intent, and local or database resources |
-| MolViewSpec `.mvsj` | Scene nodes, snapshots, parameters, resources, metadata, and exact JSON locations |
-| MolViewSpec `.mvsx` | Scene entry, archive members, checksums, embedded resources, snapshots, and scene operations |
+| Follow a tutorial | [Start here](https://github.com/GeraltZeroZhong/ClaimTrace/blob/v1.0/docs/tutorial/README.md) for a guided review with screenshots, input files and example answers. |
+| Use the GUI | [Install and open ClaimTrace](docs/start.md), then try the first built-in example. |
+| Use an agent | [Install the ClaimTrace skill](#install-the-agent-skill) with one command, then give the agent your package path and question. |
 
-### 3. See what ClaimTrace found
+## Read the tutorials
+
+Open [Start here](https://github.com/GeraltZeroZhong/ClaimTrace/blob/v1.0/docs/tutorial/README.md) to follow **Figure 1B1: Pocket
+visibility** from source files to an exported draft. The tutorial and screenshots
+display directly on GitHub. [Choose another case](https://github.com/GeraltZeroZhong/ClaimTrace/blob/v1.0/docs/tutorial/markdown/README.md)
+to explore the 12 examples by task.
+
+For offline reading, download this repository with **Code → Download ZIP**,
+extract it, and open `docs/tutorial/index.html` in your browser. Keep the tutorial
+folder together so its screenshots and downloads remain available. Reading the
+tutorials requires only a browser.
+
+## Install and open the GUI
+
+ClaimTrace requires Python 3.10 or newer. Create an environment in a folder
+of your choice and install the release from PyPI:
+
+**Windows · PowerShell**
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install claimtrace==1.0
+.\.venv\Scripts\python.exe -m claimtrace gui
+```
+
+**Linux, macOS or WSL · Bash**
 
 ```bash
-claimtrace inspect "scene-package"
+python3 -m venv .venv
+.venv/bin/python -m pip install claimtrace==1.0
+.venv/bin/python -m claimtrace gui
 ```
 
-The report shows the files in the package, recognized scene operations,
-referenced resources, and the first questions that still need your input. A
-command or node that ClaimTrace cannot confidently interpret is preserved with
-its source file and line number or JSON Pointer, so it can still be reviewed.
+For a source checkout, run the commands from the folder containing
+`pyproject.toml` and replace `pip install claimtrace==1.0` with `pip install .`.
 
-### 4. Describe the figure
+A browser opens at `http://127.0.0.1:8765`. Keep the terminal open while using
+ClaimTrace. If the browser stays closed, open the address printed in the terminal.
+Choose **Try an example → Start first example** for a guided introduction, or
+**Choose files** to begin with your own figure.
 
-Open `scene-package/answers.yml` in a text editor. Start by replacing the two
-claim placeholders:
+**Prepare → Review → Export** takes one figure statement through its evidence,
+limitations and reproducibility record. **Basic** shows the essential questions;
+**Expert** adds source records and analysis details. Packages save locally under
+`claimtrace-workspace/` in the launch folder. Stop the server with Ctrl+C and
+return later using **Open package**.
 
-```yaml
-claim:
-  claim_text: Figure 1A shows the highlighted region in the molecular structure.
-  figure_ref: Figure 1A
+The [setup guide](docs/start.md) covers reopening the GUI, free ports, Windows/WSL
+paths and installation help. The [GUI guide](docs/gui.md) explains the forms and
+review workflow.
+
+## Install the agent skill
+
+After [installing ClaimTrace](docs/start.md#install-claimtrace), open a terminal
+in the folder where you created `.venv`. Run **one command for your
+system** to install the bundled skill for Codex:
+
+If **claimtrace** already appears in Codex's skill picker, continue to the
+example below.
+
+**Windows · PowerShell**
+
+```powershell
+.\.venv\Scripts\python.exe -m claimtrace skill --out "$HOME\.agents\skills\claimtrace"
 ```
 
-Keep the generated `claim_type`, operation IDs, and reference IDs unchanged.
-If you only have the scene file and no supporting evidence yet, use:
+**Linux, macOS or WSL · Bash**
 
-```yaml
-evidence: []
+```bash
+.venv/bin/python -m claimtrace skill --out "$HOME/.agents/skills/claimtrace"
 ```
 
-Review the generated `uncertainty` statement as well. Replace its placeholder
-with a caveat you can stand behind, or use `uncertainty: []` when no separate
-caveat applies to a simple descriptive view.
+**Check:** The command prints `Skill saved:` followed by the installed
+`SKILL.md` path. It copies the complete skill and its reference files into
+your user skills folder. With WSL, run ClaimTrace and Codex in the same WSL
+environment.
 
-If the generated file contains review entries for colors or labels, follow the
-`review_instruction` beside each one. The next section explains the available
-choices.
+Open Codex's skill picker and select **claimtrace**. In the CLI or IDE extension,
+type `$` or run `/skills` to find it. Restart Codex if it has yet to appear.
 
-When attached files support the claim, add a short evidence entry. For a simple
-panel reviewed against its render and structure, for example:
+Open your working folder in Codex and try:
 
-```yaml
-evidence:
-  - evidence_kind: manual_rationale
-    method_name: Author visual review
-    result_summary: The rendered panel and attached structure were reviewed together.
-    source_artifact_roles: [render_image, structure]
+```text
+$claimtrace Inspect the package at "<absolute package folder path>".
+Keep the package unchanged. Summarize the claim, visual evidence, provenance,
+uncertainty and reproducibility status. Use ClaimTrace from this folder's
+.venv environment.
 ```
 
-Now check the file:
+Replace the placeholder with your package folder. For changes, ask the agent to
+save a proposal. In the GUI, **Agent suggestions** lets you inspect its sources
+and accept, edit, reject or revert a suggestion.
+
+The [agent guide](docs/agents.md) covers installation help, other compatible
+clients and reviewing proposals.
+
+## Use the terminal
+
+After [activating your environment](docs/start.md#use-the-short-command), these
+commands prepare, review and export the same package used by the GUI:
+
+```bash
+claimtrace init --file "figure_A.pml" --file "figure_A.png" --file "model.cif" --out "scene-package"
+claimtrace prepare "scene-package"
+claimtrace review "scene-package"
+claimtrace export "scene-package" --out "scene-package.zip"
+```
+
+Repeat `--file` for each scene, image, structure or result. PML, CXC, MVSJ and MVSX
+scenes are supported. Start with an image or table and add more context later.
+Use [the terminal walkthrough](docs/cli.md) for example answers, or
+[the synthetic examples](examples/README.md) for a small file-based exercise.
+
+The commands below use the short `claimtrace` form. You can also append the same
+arguments to `.venv/bin/python -m claimtrace` (Linux/macOS/WSL) or
+`.\.venv\Scripts\python.exe -m claimtrace` (Windows), from the folder containing `.venv`.
+
+## Scripted completion with `answers.yml`
+
+The generated `answers.yml` connects imported scene records to author context.
+Edit it in your text editor, preserving the generated operation and reference
+IDs, then check and apply it:
 
 ```bash
 claimtrace complete "scene-package" --check-answers "scene-package/answers.yml"
-```
-
-This command does not modify the package. It tells you what this particular
-scene still needs. Edit the same file and rerun the check until the required
-items are resolved, then apply it:
-
-```bash
 claimtrace complete "scene-package" --answers "scene-package/answers.yml"
-claimtrace validate "scene-package" --mode draft --format text
+claimtrace review "scene-package" --mode draft
 ```
 
-You now have a usable draft. It can stay in draft mode while you gather the
-final render, source model, or supporting analysis. The rest of this README is
-reference material for completing, replaying, or sharing the package.
-
-## Complete `answers.yml`
-
-`answers.yml` connects what ClaimTrace found in the scene with what you intend
-the figure to communicate.
+Checking leaves the package unchanged. Applying saves the corresponding
+records. Keep `evidence: []` while gathering evidence, and add observations as
+their sources become available.
 
 ### Main fields
 
@@ -137,8 +162,7 @@ the figure to communicate.
 | `uncertainty[].statement` | A useful caveat, limitation, or alternative explanation |
 | `reuse.license` / `reuse.citation` | Source, license, and citation information when known |
 
-You do not need to invent evidence to create a draft. Keep `evidence: []` until
-you have a supporting file or a review note you can describe accurately.
+Use a draft while the supporting files and review notes are being assembled.
 
 ### Review colors, labels, and other visual meanings
 
@@ -163,8 +187,9 @@ scene_semantics_by_operation:
 ```
 
 Generated IDs such as `op:...` connect your answer to a specific scene
-operation. Keep them unchanged. `claimtrace inspect "scene-package"` shows the
-original command and source line or JSON Pointer when you need more context.
+operation. Keep them unchanged. Use
+`claimtrace inspect "scene-package" --details` to see the original command
+and source line or JSON Pointer when you need more context.
 
 ## Add files and share the package
 
@@ -224,24 +249,22 @@ running the viewer or reviewing the underlying analysis.
 | A reference to `model.cif` or another resource | A successful replay, render, or viewer log |
 | A native selection or selector | Confirmation that the selection is valid and non-empty |
 | Representation, color, label, or camera commands | The final panel and viewer or environment details |
-| A distance or measurement command | The measured value, method, cutoff, units, and interpretation |
+| A distance or measurement command | The measured value, method, units and interpretation; the cutoff when one was used |
 | A render or output path | Evidence that the attached pixels came from this scene and data |
 
 `Recognized` means that a command or node was found in the file. After replaying
 a scene, attach a render, log, or environment note when that behavior matters
 to the review.
 
-Dynamic content, macros, and commands that cannot be interpreted reliably stay
-visible as items for author review. MolViewSpec files are read as structured
+Dynamic content, macros, and commands requiring runtime context stay
+visible for author review. MolViewSpec files are read as structured
 JSON or as inventoried archives. ClaimTrace checks common required parameters
 and parent relationships for recognized MolViewSpec nodes. For full schema
-validation, use official MolViewSpec tooling. Uncertain content stays visible
-for review.
+validation, use official MolViewSpec tooling.
 
-The automatic question set follows the scene content. A displayed ligand alone
-does not trigger binding-pose questions; pocket, binding-site, contact, or
-measurement context is also required. Use `--template` to choose a question set
-explicitly.
+The automatic question set follows the scene content. Ligands shown with
+pocket, binding-site, contact or measurement context prompt binding-pose
+questions. Use `--template` to choose a question set explicitly.
 
 ### Scientific details worth including
 
@@ -255,15 +278,13 @@ Use this table as a starting point and add details required by your method.
 | Computed model | Method and version; input, source, or model identifier; confidence and uncertainty measures; relevant validation; wording that distinguishes prediction from experiment |
 | Model comparison | Both source models; alignment or comparison method; selection definition; metric and units; linked result supporting the comparison |
 
-Measurement operations are recorded as intent until you supply the measured
-value, method, cutoff, units, and interpretation. A color ramp over a generic
+Measurement commands record the intended operation. Add the measured value,
+method, units and interpretation, including any cutoff used. A color ramp over a generic
 numeric field also needs context, such as whether an atom `b` field represents
 crystallographic B-factors, AlphaFold pLDDT, or another imported quantity.
 
-Passing archive validation means the package passed ClaimTrace's configured
-blocking checks for completeness and traceability. Scientific interpretation
-remains a reviewer judgment, so read the warnings, waivers, non-blocking notes,
-and linked evidence alongside the package.
+Archive validation checks package completeness and traceability. Review its
+warnings, waivers and linked evidence when assessing the scientific claim.
 
 ## Replay and review
 
@@ -276,7 +297,7 @@ that directory when the scene uses relative paths.
 | --- | --- |
 | `.pml` | Start PyMOL in `scene-package/native/` so relative `load` paths resolve |
 | `.cxc` | Start ChimeraX in the same directory so relative `open` paths resolve |
-| `.mvsj` | Open it in a Mol* viewer with MolViewSpec support; a browser may not expose adjacent local files |
+| `.mvsj` | Open it in a Mol* viewer with MolViewSpec support and make its referenced resources accessible to that viewer |
 | `.mvsx` | Open the archive directly; embedded relative resources remain inside it |
 
 For example:
@@ -292,23 +313,21 @@ Or, from the same directory:
 chimerax "figure_A.cxc"
 ```
 
-A local `.mvsj` opened in a browser cannot always access adjacent files. Serve
-the files from URLs or build a standard `.mvsx` when those resources need to
-travel together.
+For browser-based `.mvsj` replay, serve referenced files from accessible URLs
+or bundle them in a standard `.mvsx` archive.
 
 A standard `.mvsx` contains a top-level `index.mvsj`. If an archive contains
 exactly one differently named or nested `.mvsj`, ClaimTrace can still read it
 for static review, but reports that it must be rebuilt before standard MVSX
 replay. A referenced file that is missing from the archive must be added at the
-path used by `index.mvsj`; placing a sibling file outside the archive does not
-make it self-contained.
+path used by `index.mvsj` inside the archive.
 
 An MVSX file is already a viewer archive. A ClaimTrace package adds the figure
 claim, author explanations, supporting files, validation report, and package
 checksums around that viewer archive.
 
-PyMOL `.pse` sessions can be attached as additional evidence, but they are not
-one of the four scene formats accepted by `claimtrace init <scene-file>`.
+Attach PyMOL `.pse` sessions with `--artifact` alongside a PML scene or figure
+image. Use `.pml`, `.cxc`, `.mvsj` or `.mvsx` for the native scene input.
 
 ### Review a package you received
 
@@ -329,19 +348,19 @@ whose paths you are using.
 ### Native Windows PowerShell
 
 ```powershell
-Set-Location "C:\Users\YourName\Documents\review-visualization"
+Set-Location "C:\work\figure-project"
 claimtrace init ".\figure_A.mvsj"
 ```
 
 ### WSL Bash
 
 ```bash
-cd "/mnt/c/Users/YourName/Documents/review-visualization"
+cd "/mnt/c/work/figure-project"
 claimtrace init "./figure_A.mvsj"
 ```
 
 Replace `.mvsj` with `.pml`, `.cxc`, or `.mvsx` in either example. Inside WSL,
-translate `C:\Users\...` to `/mnt/c/Users/...`. Paths stored in a package are
+translate `C:\work\...` to `/mnt/c/work/...`. Paths stored in a package are
 package-relative, avoiding machine-specific absolute paths in the exported package.
 
 To extract and validate a zip in PowerShell:
@@ -364,13 +383,24 @@ claimtrace validate "scene-package-roundtrip" --mode archive --format text
 
 | Command | Purpose |
 | --- | --- |
-| `claimtrace init <scene-file>` | Create a draft from `.pml`, `.cxc`, `.mvsj`, or `.mvsx` and write a tailored `answers.yml` |
-| `claimtrace inspect <package>` | Show files, scene observations, references, and open questions |
+| `claimtrace init --file <file> --out <package>` | Create a draft from scenes, images and supporting files; repeat `--file` for multiple inputs |
+| `claimtrace gui [package]` | Open the local Prepare, Review, and Export workspace |
+| `claimtrace inspect <package>` | Summarize materials and pending preparation questions |
+| `claimtrace inspect <package> --details` | Inspect source operations, resources, and file inventory |
+| `claimtrace prepare <package>` | Prepare a claim, evidence, limitations and scene details in the terminal |
+| `claimtrace prepare <package> --expert` | Show detailed records while preparing the package |
+| `claimtrace complete <package>` | Open the same terminal guide |
+| `claimtrace review <package>` | Read the five-part audit for the saved purpose |
+| `claimtrace review <package> --expert` | Show record IDs and all remaining questions |
+| `claimtrace examples` | List the shared synthetic practice cases |
+| `claimtrace prepare --example <id>` | Start a guided practice package |
 | `claimtrace complete ... --check-answers ...` | Check an edited answers file without changing the package |
 | `claimtrace complete ... --answers ...` | Apply author context to the semantic layer |
 | `claimtrace add-artifact ...` | Add a supporting file later |
 | `claimtrace validate ...` | Check a draft, handoff, share package, or archive |
 | `claimtrace export ...` | Validate and write a directory or zip |
+| `claimtrace agent ...` | Inspect JSON records, check and save proposals, or record a human review decision |
+| `claimtrace skill [--out <folder>]` | Locate the bundled agent skill or copy it into a new folder |
 | `claimtrace quickstart` | Print the shortest copy-and-paste workflow |
 
 Run `claimtrace <command> --help` for command-specific options.
@@ -407,12 +437,12 @@ inventory.
 | `Output directory already exists` | Choose another `--out` path. Use `--force` only when the target is an existing ClaimTrace package you intend to replace |
 | A referenced local file is unresolved | Add the file with `claimtrace add-artifact`, or rerun `init` with `--artifact` |
 | `Invalid MolViewSpec JSON` | Use the reported line and column, save the file as UTF-8 JSON, and rerun `init` |
-| A PyMOL or ChimeraX scene is not valid UTF-8 | Re-save the script as UTF-8 (a UTF-8 BOM is accepted) and rerun `init` |
-| An item needs author review | Run `claimtrace inspect "scene-package"`, then record whether the item affects the figure in `answers.yml` |
+| A PyMOL or ChimeraX scene has a text-encoding error | Re-save the script as UTF-8 (a UTF-8 BOM is accepted) and rerun `init` |
+| An item needs author review | Run `claimtrace prepare "scene-package"` and choose the matching detail, or update the corresponding `answers.yml` entry |
 | Answer checking lists remaining fields | Keep editing the same file and rerun `--check-answers`; the package changes only after you use `--answers` |
-| An MVSX member is missing | Rebuild the `.mvsx` with the file at the path used by `index.mvsj`; an outside sibling cannot satisfy an archive member |
+| An MVSX member is missing | Rebuild the `.mvsx` with the file inside the archive at the path used by `index.mvsj` |
 | ClaimTrace reports a nonstandard MVSX entry | Move or rename the intended scene to top-level `index.mvsj` before viewer replay |
-| Archive validation is not ready | Start with the required items in the report; draft mode remains available while you complete them |
+| Archive validation reports required items | Complete the listed items, or export in draft mode while gathering the remaining context |
 | An operation ID is unknown | Keep the edited file. Generate `answers.new.yml` for comparison with `claimtrace complete "scene-package" --emit-template > "scene-package/answers.new.yml"` |
 
 Useful help commands:
@@ -421,6 +451,7 @@ Useful help commands:
 claimtrace --help
 claimtrace quickstart
 claimtrace init --help
+claimtrace prepare --help
 claimtrace complete --help
 ```
 
@@ -440,10 +471,9 @@ report = validate_package(pkg, mode="draft")
 loaded = load_package("scene-package")
 ```
 
-The `native` argument accepts `.pml`, `.cxc`, `.mvsj`, or `.mvsx`. The CLI is
-the most guided route because it creates and explains `answers.yml`; the
-top-level Python functions and `claimtrace.api` expose the same package
-operations for scripts and integrations.
+The `native` argument accepts `.pml`, `.cxc`, `.mvsj` or `.mvsx`. The Python
+functions and `claimtrace.api` expose the package operations used by the GUI
+and terminal guide.
 
 ### Development
 
@@ -456,4 +486,13 @@ python -m twine check dist/*
 
 ## License
 
-ClaimTrace is released under the MIT License. See `LICENSE` for the full text.
+ClaimTrace software is released under the MIT License. See `LICENSE` for the
+full text. Tutorial data and figures retain their source-specific attribution
+and reuse terms; see the [tutorial sources](https://github.com/GeraltZeroZhong/ClaimTrace/blob/v1.0/docs/tutorial/SOURCES.md).
+
+## Version and citation
+
+Read the [1.0 release notes](docs/releases/1.0.md) for downloads and upgrade
+steps, and [Interface contracts](docs/interfaces.md) for stable API, CLI and
+agent behavior. [Development](docs/development.md) covers testing and local builds.
+Use [CITATION.cff](CITATION.cff) to cite the software.

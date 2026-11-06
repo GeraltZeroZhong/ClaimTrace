@@ -1,5 +1,5 @@
-from claimtrace.cli import app
+from claimtrace.cli import run
 
 
 if __name__ == "__main__":
-    app()
+    run()

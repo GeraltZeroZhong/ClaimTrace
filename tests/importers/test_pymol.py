@@ -1,4 +1,5 @@
 from pathlib import Path
+from uuid import NAMESPACE_URL, uuid5
 
 from claimtrace.importers.pymol import PyMOLImporter
 from claimtrace.models import SemanticLayer
@@ -36,6 +37,50 @@ def test_pymol_environment_variable_path_is_preserved_as_dynamic(tmp_path: Path)
     assert not semantic.resource_references
 
 
+def test_pymol_later_partial_commands_preserve_dynamic_parse_confidence(tmp_path: Path):
+    pml = tmp_path / "scene.pml"
+    pml.write_text(
+        'run setup.py\nmystery command\nset_view (1, 0, 0)\nselect "bad name", chain A\n',
+        encoding="utf-8",
+    )
+    semantic = SemanticLayer.new("pkg-test")
+
+    PyMOLImporter().import_into(pml, "artifact:pml", semantic)
+
+    assert semantic.scenes[0].parse_confidence.value == "low"
+    assert len(semantic.raw_native_observations) == 4
+
+
+def test_pymol_distinct_selection_names_retain_definitions_and_visibility_links(tmp_path: Path):
+    pml = tmp_path / "scene.pml"
+    names = [
+        "protein_chain_a_activation_loop_and_ligand_contact_residues_before",
+        "protein_chain_a_activation_loop_and_ligand_contact_residues_after",
+        "Focus",
+        "focus",
+        f"focus_{uuid5(NAMESPACE_URL, 'Focus').hex[:12]}",
+    ]
+    pml.write_text(
+        "set ignore_case, 0\n" + "".join(
+            f"select {name}, chain {chain}\nshow sticks, {name}\n"
+            for name, chain in zip(names, "ABCDE")
+        ),
+        encoding="utf-8",
+    )
+    semantic = SemanticLayer.new("pkg-test")
+
+    PyMOLImporter().import_into(pml, "artifact:pml", semantic)
+
+    assert [item.name for item in semantic.selections] == names
+    assert [item.native_selector.value for item in semantic.selections] == [
+        "chain A", "chain B", "chain C", "chain D", "chain E",
+    ]
+    assert len({item.id for item in semantic.selections}) == len(names)
+    assert [item.selection_id for item in semantic.scenes[0].visibility] == [
+        item.id for item in semantic.selections
+    ]
+
+
 def test_pymol_same_line_resources_keep_distinct_source_columns(tmp_path: Path):
     pml = tmp_path / "scene.pml"
     pml.write_text("load first.cif, first; load second.cif, second\n", encoding="utf-8")
@@ -48,6 +93,46 @@ def test_pymol_same_line_resources_keep_distinct_source_columns(tmp_path: Path):
         "second.cif",
     ]
     assert [fact.source_location["column"] for fact in result.facts] == [1, 24]
+
+
+def test_pymol_indented_statements_retain_physical_source_positions(tmp_path: Path):
+    pml = tmp_path / "scene.pml"
+    pml.write_text("    load a.cif, first; load b.cif, second\n", encoding="utf-8")
+    semantic = SemanticLayer.new("pkg-test")
+
+    result = PyMOLImporter().import_into(pml, "artifact:pml", semantic)
+
+    assert [(fact.source_location["line"], fact.source_location["column"])
+            for fact in result.facts] == [(1, 5), (1, 24)]
+    assert [(item.source_location.line, item.source_location.column)
+            for item in semantic.resource_references] == [(1, 5), (1, 24)]
+
+
+def test_pymol_continued_statements_retain_physical_source_positions(tmp_path: Path):
+    pml = tmp_path / "scene.pml"
+    lines = [
+        "    load a.cif, \\",
+        "      first; load b.cif, second",
+        "  set_view (",
+        "    1, 0, 0, 0, 1, 0,",
+        "    0, 0, 1, 0, 0, -10,",
+        "    0, 0, 0, 1, 20, -10 ); load c.cif, third",
+    ]
+    pml.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    semantic = SemanticLayer.new("pkg-test")
+
+    result = PyMOLImporter().import_into(pml, "artifact:pml", semantic)
+
+    assert [(fact.source_location["line"], fact.source_location["column"])
+            for fact in result.facts] == [
+        (1, 5), (2, lines[1].index("load") + 1),
+        (3, 3), (6, lines[5].index("load") + 1),
+    ]
+    assert [(item.source_location.line, item.source_location.column)
+            for item in semantic.resource_references] == [
+        (1, 5), (2, lines[1].index("load") + 1), (6, lines[5].index("load") + 1),
+    ]
+    assert len({fact.fact_id for fact in result.facts}) == 4
 
 
 def test_pymol_duplicate_raw_statements_are_both_preserved_and_linked_to_scene(tmp_path: Path):

@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import math
+from collections import Counter
 from pathlib import Path
 from typing import Any
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from claimtrace import _simple_yaml
+from claimtrace._finite import ensure_finite
+from claimtrace.errors import ClaimTraceError
 from claimtrace.models import (
     Claim,
     EvidenceBinding,
@@ -23,9 +27,9 @@ from claimtrace.models import (
 )
 from claimtrace.models.semantic_layer import (
     ClaimCriticalStatus,
+    ArtifactRole,
     ClaimType,
     ConfidenceValue,
-    EvidenceKind,
     MeaningStatus,
     Provenance,
     ReviewStatus,
@@ -67,9 +71,9 @@ TEMPLATES: dict[str, dict[str, Any]] = {
             "profile": "simple-structure-view",
         },
         "claim": {
-            "claim_text": "TODO: write the figure or panel message",
+            "claim_text": "TODO: write one sentence stating what this figure or panel shows",
             "claim_type": "simple_structure_view",
-            "figure_ref": "TODO: add figure/panel label",
+            "figure_ref": "TODO: add the figure or panel label",
             "scope": "panel",
         },
         "artifacts": [
@@ -79,7 +83,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "evidence": [
             {
                 "evidence_kind": "manual_rationale",
-                "method_name": "TODO: name the review or evidence method",
+                "method_name": "TODO: name the inspection or analysis used to check this claim",
                 "result_summary": "TODO: explain which attached files support this panel and how",
                 "source_artifact_roles": ["native_script", "render_image", "structure"],
             }
@@ -91,7 +95,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         },
         "uncertainty": {
             "category": "scope",
-            "statement": "TODO: add a useful caveat, or set uncertainty: [] if none applies",
+            "statement": "TODO: add a relevant limitation, or set uncertainty: [] if none applies",
         },
         "reuse": {"license": "unknown", "citation": "unknown"},
     },
@@ -103,9 +107,9 @@ TEMPLATES: dict[str, dict[str, Any]] = {
             "profile": "ligand-binding-pose",
         },
         "claim": {
-            "claim_text": "TODO: write the exact ligand/pocket claim for this panel",
+            "claim_text": "TODO: write the exact claim about the ligand and binding pocket in this panel",
             "claim_type": "ligand_binding_pose",
-            "figure_ref": "TODO: add figure/panel label",
+            "figure_ref": "TODO: add the figure or panel label",
             "scope": "panel",
         },
         "artifacts": [
@@ -134,7 +138,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
                 "method_name": "TODO: name the contact or validation method",
                 "thresholds": {},
                 "units": {},
-                "result_summary": "TODO: summarize the contact/distance evidence and file names",
+                "result_summary": "TODO: summarize the contacts or measured distances and name the supporting files",
                 "source_artifact_roles": ["contact_table", "structure"],
                 "target_entity_ids": ["entity:ligand:X", "entity:binding-site"],
             }
@@ -146,7 +150,7 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         },
         "uncertainty": {
             "category": "alternative_pose",
-            "statement": "TODO: state whether alternative poses, waters/cofactors or other limits were assessed",
+            "statement": "TODO: state whether alternative poses, water molecules, cofactors, or other limitations were assessed",
         },
         "reuse": {"license": "unknown", "citation": "unknown"},
     },
@@ -184,7 +188,7 @@ def completion_tasks_for_template(template: str) -> list[CompletionTask]:
                 section=section,
                 question=question,
                 target_json_pointer=_section_pointer(section),
-                field_use="Adds author context that native visualization files do not contain.",
+                field_use="Records the author’s statement, evidence and interpretation of the figure.",
                 examples=_section_examples(section, template),
                 accepted_values=["unknown", "not_applicable", "short author-provided value"],
                 blocking=(
@@ -216,12 +220,12 @@ def _section_examples(section: str, template: str) -> list[str]:
             return [
                 "confirm: magenta marks the ligand discussed in this panel",
                 "edit: label names the pocket residue being discussed",
-                "presentation only: color is for contrast; no scientific category implied",
+                "presentation only: color improves contrast",
             ]
         return [
             "confirm: cartoon/sticks distinguish the objects described in the panel",
             "edit: label identifies the chain or residue readers should notice",
-            "presentation only: color is for contrast; no scientific category implied",
+            "presentation only: color improves contrast",
         ]
     if section == "evidence":
         if template == "ligand-binding-pose":
@@ -232,8 +236,8 @@ def _section_examples(section: str, template: str) -> list[str]:
         return ["model.cif and figure_A.png were checked together", "native scene and structure file were reviewed together"]
     if section == "uncertainty":
         if template == "ligand-binding-pose":
-            return ["alternative pose not assessed", "water/cofactor context not shown in this panel"]
-        return ["not_applicable: this is a simple structure view", "no mechanism or interaction strength is asserted"]
+            return ["Alternative poses need comparison.", "Assess water and cofactor context in a separate view."]
+        return ["not_applicable: this is a simple structure view", "The statement describes visible structure and selection."]
     return ["unknown", "confirmed value"]
 
 
@@ -258,20 +262,32 @@ def package_answer_template(semantic: SemanticLayer, template: str = "simple-str
             "creator": semantic.package.creator,
             "license": semantic.package.license,
             "profile": semantic.package.profile,
+            "description": semantic.package.description,
         }
     )
     _make_artifacts_package_aware(data, semantic)
     _make_evidence_package_aware(data, semantic)
     _make_scenes_package_aware(data, semantic)
+    data["reuse"] = semantic.reuse.model_dump(mode="json", exclude={"extensions"})
+    data["software"] = [item.model_dump(mode="json") for item in semantic.software_environment]
+    if semantic.entities or semantic.claims:
+        data["entities"] = [item.model_dump(mode="json") for item in semantic.entities]
+    if semantic.claims:
+        data.pop("claim", None)
+        data["claims"] = []
+        for claim in semantic.claims:
+            item = claim.model_dump(mode="json")
+            text = item.pop("claim_text")
+            item.update({key: value for key, value in text.items() if key != "value"})
+            item["claim_text"] = text["value"]
+            data["claims"].append(item)
+        data["evidence"] = [item.model_dump(mode="json") for item in semantic.evidence]
+        data["uncertainty"] = [item.model_dump(mode="json") for item in semantic.uncertainty]
     if semantic.selections:
         data["selections"] = [
             {
-                "id": selection.id,
-                "name": selection.name,
+                **selection.model_dump(mode="json"),
                 "native_selector": selection.native_selector.value,
-                "entity_ids": selection.entity_ids,
-                "claim_critical": selection.claim_critical,
-                "review_status": selection.review_status.value,
                 "review_instruction": (
                     "If this selection supports the figure claim, link entity_ids and set claim_critical: true; "
                     "otherwise leave claim_critical: false."
@@ -285,9 +301,11 @@ def package_answer_template(semantic: SemanticLayer, template: str = "simple-str
             {
                 "native_ref_id": ref.native_ref_id,
                 "native_expression": ref.native_expression,
-                "stable_identity": ref.stable_identity or "unknown",
+                "stable_identity": ref.stable_identity,
+                "identity_status": ref.identity_status,
                 "target_resolution_status": ref.target_resolution_status.value,
                 "claim_critical": ref.claim_critical.value,
+                "review_status": ref.review_status.value,
             }
             for ref in semantic.native_references
         ]
@@ -309,13 +327,35 @@ def package_answer_template(semantic: SemanticLayer, template: str = "simple-str
             for operation in semantic.observed_scene_operations
             if _include_scene_semantics_entry(operation)
         ]
+        recorded_ids = {
+            operation_id for item in semantic.visual_encoding_semantics for operation_id in item.operation_ids
+        }
+        data["scene_semantics_by_operation"] = [
+            item for item in data["scene_semantics_by_operation"]
+            if not recorded_ids.intersection(item["operation_ids"])
+        ]
+        operations = {item.operation_id: item for item in semantic.observed_scene_operations}
+        for meaning in semantic.visual_encoding_semantics:
+            item = meaning.model_dump(mode="json")
+            linked = [operations[oid] for oid in meaning.operation_ids if oid in operations]
+            if linked:
+                operation = linked[0]
+                item.update(
+                    operation=operation.operation, native=operation.native_command,
+                    source_location=operation.source_location.model_dump(mode="json", exclude_none=True),
+                )
+                criticality = {entry.claim_critical.value for entry in linked}
+                if len(criticality) == 1:
+                    item["claim_critical"] = criticality.pop()
+            data["scene_semantics_by_operation"].append(item)
         data["raw_resolutions"] = [
             {
                 "raw_id": raw.raw_id,
                 "native_text": raw.native_text,
                 "reason": raw.reason,
                 "claim_critical": raw.claim_critical.value,
-                "resolution": "unknown",
+                "resolution": raw.resolution,
+                "review_status": raw.review_status.value,
             }
             for raw in semantic.raw_native_observations
         ]
@@ -328,8 +368,8 @@ def package_answer_template(semantic: SemanticLayer, template: str = "simple-str
             }
             for resource in semantic.resource_references
         ]
-        data["evidence_bindings"] = []
-        data["waivers"] = []
+        data["evidence_bindings"] = [item.model_dump(mode="json") for item in semantic.evidence_bindings]
+        data["waivers"] = [item.model_dump(mode="json") for item in semantic.provenance.waivers]
     return data
 
 
@@ -343,11 +383,11 @@ def dump_package_answer_template(semantic: SemanticLayer, template: str = "simpl
             "# entities/selections: fill only molecules, chains, residues or selections readers must identify.",
             "# scene_semantics_by_operation: edit only entries listed here; they are keyed by operation_ids.",
             "# In multi-scene packages, choose claim.scene_ids and assign each render_artifact_id only to its matching scene.",
-            "# ClaimTrace auto-annotates literal color/label/display facts. The candidate_meaning field is a tool suggestion, not an author-confirmed meaning.",
+            "# ClaimTrace records color, label and display commands. Review each candidate_meaning before accepting it.",
             "# For each color/label suggestion choose one:",
             "#   meaning_status: user_confirmed_meaning          # visual choice carries the figure message",
             "#   meaning_status: user_declared_no_scientific_meaning  # contrast/readability only",
-            "#   claim_critical: false                            # not central to this figure or panel",
+            "#   claim_critical: false                            # incidental to this figure or panel",
             "# raw_resolutions: review only preserved/unsupported native items; keep raw_id unchanged.",
             "#   resolution choices include reviewed_no_claim_impact, no_scene_effect, converted_to_evidence, waived, and not_applicable.",
             "# Long inline resource URIs are summarized here; semantic_layer.json keeps the exact value.",
@@ -366,44 +406,82 @@ def apply_answers(
     *,
     answer_base: Path | None = None,
 ) -> SemanticLayer:
+    """Validate the complete edit in memory before attaching files or changing CAL."""
     answer_base = answer_base or root
+    candidate, registrations = _prepare_answers(root, semantic, answers, answer_base=answer_base)
+    for source, options in registrations:
+        if not options["detached"]:
+            register_local_artifact(root, candidate, source, **options)
+    for field in type(semantic).model_fields:
+        setattr(semantic, field, getattr(candidate, field))
+    return semantic
+
+
+def _prepare_answers(
+    root: Path | None,
+    semantic: SemanticLayer,
+    answers: dict[str, Any],
+    *,
+    answer_base: Path | None = None,
+    validate_references: bool = True,
+) -> tuple[SemanticLayer, list[tuple[Path, dict[str, Any]]]]:
+    """Build and validate a candidate CAL without writing package files."""
+    ensure_finite(answers)
+    original = semantic
+    semantic = semantic.model_copy(deep=True)
+    registrations: list[tuple[Path, dict[str, Any]]] = []
+    answer_base = answer_base or root
+    if root is not None:
+        problems = _check_answer_artifact_paths(answers, root, answer_base or root)
+        if problems:
+            raise ValueError("\n".join(problems))
+    _register_answer_artifacts(root, semantic, answers.get("artifacts", []), answer_base, registrations)
     _apply_cxc_mvs_answers(semantic, answers)
     _apply_package(semantic, answers.get("package", {}))
     _apply_reuse(semantic, answers.get("reuse", {}))
-    _register_answer_artifacts(root, semantic, answers.get("artifacts", []), answer_base)
     _apply_entities(semantic, answers.get("entities", []))
     _apply_selections(semantic, answers.get("selections", []))
-    _apply_scene_semantics(semantic, answers.get("scenes", answers.get("scene", {})))
     claims = _coerce_list(answers.get("claims", answers.get("claim")))
     claim_items = [item for item in claims if isinstance(item, dict)]
     claim_ids = [
         _apply_claim(semantic, item, answer_index=index, answer_count=len(claim_items))
         for index, item in enumerate(claim_items)
     ]
-    evidence_ids = _apply_evidence(root, semantic, answers.get("evidence", []), answer_base, claim_ids)
+    evidence_ids = _apply_evidence(
+        root, semantic, answers.get("evidence", []), answer_base, claim_ids, registrations
+    )
     uncertainty_ids = _apply_uncertainty(semantic, answers.get("uncertainty", []), claim_ids)
-    for claim in semantic.claims:
-        if claim.id in claim_ids or (not claim_ids and claim.review_status in {ReviewStatus.confirmed, ReviewStatus.human_accepted}):
-            linked_evidence_ids = [
-                evidence.id
-                for evidence in semantic.evidence
-                if evidence.id in evidence_ids and claim.id in evidence.claim_ids
+    _apply_scene_semantics(
+        semantic, answers.get("scenes", answers.get("scene", {})),
+        validate_references=validate_references,
+    )
+    for records, changed_ids, field in (
+        (semantic.evidence, evidence_ids, "evidence_ids"),
+        (semantic.uncertainty, uncertainty_ids, "uncertainty_ids"),
+    ):
+        changed = {record.id: record for record in records if record.id in changed_ids}
+        for claim in semantic.claims:
+            retained = [
+                identity for identity in getattr(claim, field)
+                if identity not in changed or claim.id in changed[identity].claim_ids
             ]
-            linked_uncertainty_ids = [
-                uncertainty.id
-                for uncertainty in semantic.uncertainty
-                if uncertainty.id in uncertainty_ids and claim.id in uncertainty.claim_ids
-            ]
-            claim.evidence_ids = sorted(set(claim.evidence_ids + linked_evidence_ids))
-            claim.uncertainty_ids = sorted(
-                set(claim.uncertainty_ids + linked_uncertainty_ids)
-            )
-            if not claim.scene_ids and len(semantic.scenes) == 1:
-                claim.scene_ids = [scene.id for scene in semantic.scenes]
+            linked = [record.id for record in changed.values() if claim.id in record.claim_ids]
+            setattr(claim, field, list(dict.fromkeys(retained + linked)))
     _apply_software(semantic, answers.get("software", []))
     _mark_tasks_answered(semantic)
     semantic.add_activity("completion", "Applied author completion answers.")
-    return semantic
+    candidate = SemanticLayer.model_validate(ensure_finite(semantic.model_dump()))
+    if validate_references:
+        from claimtrace.validation.engine import _reference_findings
+
+        existing = Counter((item.rule_id, item.message) for item in _reference_findings(original))
+        for issue in _reference_findings(candidate):
+            key = (issue.rule_id, issue.message)
+            if existing[key]:
+                existing[key] -= 1
+            else:
+                raise ValueError(f"{issue.json_pointer}: {issue.message}")
+    return candidate, registrations
 
 
 def check_answers(
@@ -418,18 +496,37 @@ def check_answers(
     if answer_schema and answer_schema not in NATIVE_SCENE_ANSWER_SCHEMAS:
         allowed = ", ".join(sorted(NATIVE_SCENE_ANSWER_SCHEMAS))
         problems.append(f"answer_schema has unsupported value: {answer_schema}. Choose one of: {allowed}.")
-    if _uses_native_scene_answer_schema(answers) or (semantic is not None and _has_cxc_mvs_anchors(semantic)):
-        problems.extend(_check_cxc_mvs_answers(answers, semantic))
     if "claim" not in answers and "claims" not in answers:
         problems.append("Missing claim or claims section.")
     if "evidence" not in answers:
         problems.append("Missing evidence section.")
     if "reuse" not in answers:
         problems.append("Missing reuse section.")
-    problems.extend(_check_required_content(answers, semantic))
-    problems.extend(_check_scene_links(answers, semantic))
+    prepared = None
     if root is not None:
         problems.extend(_check_answer_artifact_paths(answers, root, answer_base or root))
+    if not problems:
+        try:
+            prepared, _ = _prepare_answers(
+                root, semantic or SemanticLayer.new("answer-check"), answers,
+                answer_base=answer_base, validate_references=semantic is not None,
+            )
+        except (ValueError, TypeError, ClaimTraceError) as exc:
+            problems.append(f"Invalid answer value: {exc}")
+    reference_semantic = prepared if semantic is not None and prepared is not None else semantic
+    unchanged_operations: set[str] = set()
+    if semantic is not None and prepared is not None and semantic.claims == prepared.claims:
+        previous_operations = {item.operation_id: item for item in semantic.observed_scene_operations}
+        for operation in prepared.observed_scene_operations:
+            old_meanings = [item for item in semantic.visual_encoding_semantics if operation.operation_id in item.operation_ids]
+            new_meanings = [item for item in prepared.visual_encoding_semantics if operation.operation_id in item.operation_ids]
+            if previous_operations.get(operation.operation_id) == operation and old_meanings == new_meanings:
+                unchanged_operations.add(operation.operation_id)
+    if _uses_native_scene_answer_schema(answers) or (semantic is not None and _has_cxc_mvs_anchors(semantic)):
+        # Planned artifacts are already represented, including their final local IDs.
+        problems.extend(_check_cxc_mvs_answers(answers, reference_semantic, unchanged_operations=unchanged_operations))
+    problems.extend(_check_required_content(answers, semantic, prepared))
+    problems.extend(_check_scene_links(answers, reference_semantic))
     return problems
 
 
@@ -610,39 +707,59 @@ def _make_scenes_package_aware(data: dict[str, Any], semantic: SemanticLayer) ->
         else:
             claim["scene_ids"] = []
             claim["available_scene_ids"] = [scene.id for scene in semantic.scenes]
-    if len(semantic.scenes) == 1:
-        return
-    data["available_render_artifacts"] = [
-        {"id": artifact.id, "path": artifact.path or artifact.url or "unknown"}
-        for artifact in semantic.artifacts
-        if artifact.role.value == "render_image"
-    ]
+    if len(semantic.scenes) > 1:
+        data["available_render_artifacts"] = [
+            {"id": artifact.id, "path": artifact.path or artifact.url or "unknown"}
+            for artifact in semantic.artifacts
+            if artifact.role.value == "render_image"
+        ]
     base = data.pop("scene", {})
     base = base if isinstance(base, dict) else {}
-    data["scenes"] = [
-        {
+    scenes = []
+    for scene in semantic.scenes:
+        meanings = scene.extensions.get("user_scene_semantics", [])
+        meanings = meanings[-1] if isinstance(meanings, list) and meanings else {}
+        scenes.append({
             **base,
+            **meanings,
             "scene_ids": [scene.id],
             "render_artifact_ids": list(scene.render_artifact_ids),
-        }
-        for scene in semantic.scenes
-    ]
+        })
+    if len(scenes) == 1:
+        data["scene"] = scenes[0]
+    else:
+        data["scenes"] = scenes
 
 
-def _check_required_content(answers: dict[str, Any], semantic: SemanticLayer | None) -> list[str]:
+def _check_required_content(
+    answers: dict[str, Any], semantic: SemanticLayer | None, prepared: SemanticLayer | None = None,
+) -> list[str]:
     problems: list[str] = []
-    claims = _coerce_list(answers.get("claims", answers.get("claim")))
+    unchanged: set[str] = set()
+    if semantic is not None and prepared is not None:
+        previous_records = {item.id: item for field in ("claims", "evidence", "uncertainty") for item in getattr(semantic, field)}
+        unchanged = {
+            item.id for field in ("claims", "evidence", "uncertainty") for item in getattr(prepared, field)
+            if previous_records.get(item.id) == item
+        }
+    claims = [
+        _effective_answer(item, semantic.claims if semantic else [])
+        for item in _coerce_list(answers.get("claims", answers.get("claim")))
+    ]
     claim_types = {
         str(item.get("claim_type", ""))
         for item in claims
-        if isinstance(item, dict)
+        if isinstance(item, dict) and item.get("id") not in unchanged
     }
     seen_claim_ids: set[str] = set()
     for index, item in enumerate(claims):
         if not isinstance(item, dict):
             problems.append(f"claim[{index}] must be a mapping.")
             continue
-        if _is_placeholder(item.get("claim_text", item.get("text"))):
+        text = item.get("claim_text", item.get("text"))
+        if isinstance(text, dict):
+            text = text.get("value")
+        if _is_placeholder(text):
             problems.append("claim.claim_text is still unknown; write the figure or panel message.")
         if _is_placeholder(item.get("figure_ref")):
             problems.append("claim.figure_ref is still unknown; write the figure or panel label.")
@@ -664,6 +781,9 @@ def _check_required_content(answers: dict[str, Any], semantic: SemanticLayer | N
                 if scene_id not in known_scene_ids:
                     problems.append(f"claims[{index}].scene_ids references unknown scene_id: {scene_id}")
     for index, item in enumerate(_coerce_list(answers.get("evidence", []))):
+        if isinstance(item, dict) and item.get("id") in unchanged:
+            continue
+        item = _effective_answer(item, semantic.evidence if semantic else [])
         if not isinstance(item, dict):
             problems.append(f"evidence[{index}] must be a mapping.")
             continue
@@ -681,23 +801,30 @@ def _check_required_content(answers: dict[str, Any], semantic: SemanticLayer | N
             )
         if str(item.get("evidence_kind", "")) in {"contact_table", "measurement"}:
             thresholds = item.get("thresholds", {})
+            parameters = item.get("parameters", {})
             units = item.get("units", {})
             threshold = thresholds.get("distance") if isinstance(thresholds, dict) else None
+            measured = parameters.get("measured_distance") if isinstance(parameters, dict) else None
+            is_measurement = str(item.get("evidence_kind")) == "measurement" and measured is not None
+            distance = measured if is_measurement else threshold
             unit = units.get("distance") if isinstance(units, dict) else None
             try:
-                valid_threshold = float(threshold) > 0
-            except (TypeError, ValueError):
+                valid_threshold = not isinstance(distance, bool) and math.isfinite(float(distance)) and float(distance) > 0
+            except (TypeError, ValueError, OverflowError):
                 valid_threshold = False
             if not valid_threshold:
                 problems.append(
-                    f"evidence[{index}].thresholds.distance needs a positive numeric cutoff."
+                    f"evidence[{index}].parameters.measured_distance needs a positive finite numeric distance."
+                    if is_measurement else f"evidence[{index}].thresholds.distance needs a positive numeric cutoff."
                 )
             if _is_placeholder(unit):
                 problems.append(
                     f"evidence[{index}].units.distance is still unknown; record a unit such as angstrom."
                 )
     if ClaimType.ligand_binding_pose.value in claim_types:
-        entities = _coerce_list(answers.get("entities", []))
+        entities = _coerce_list(answers.get(
+            "entities", [item.model_dump(mode="json") for item in semantic.entities] if semantic else []
+        ))
         if not entities:
             problems.append("A ligand-binding answer needs ligand and binding-site/residue entities.")
         for index, item in enumerate(entities):
@@ -707,14 +834,39 @@ def _check_required_content(answers: dict[str, Any], semantic: SemanticLayer | N
                 problems.append(
                     f"entities[{index}].stable_identity is still unknown; record the model/chain/residue or ligand identity."
                 )
-    uncertainty = _coerce_list(answers.get("uncertainty", []))
+    existing_limits = []
+    if semantic is not None:
+        answered_claim_ids = {str(item["id"]) for item in claims if isinstance(item, dict) and item.get("id")}
+        existing_limits = [
+            item.model_dump(mode="json") for item in semantic.uncertainty
+            if answered_claim_ids.intersection(item.claim_ids)
+        ]
+    uncertainty = _coerce_list(answers.get("uncertainty", existing_limits))
     if ClaimType.ligand_binding_pose.value in claim_types and not uncertainty:
         problems.append("A ligand-binding answer needs a caveat or alternative-pose statement.")
     for index, item in enumerate(uncertainty):
+        if isinstance(item, dict) and item.get("id") in unchanged:
+            continue
+        item = _effective_answer(item, semantic.uncertainty if semantic else [])
         statement = item.get("statement") if isinstance(item, dict) else item
         if _is_placeholder(statement):
             problems.append(f"uncertainty[{index}].statement is still unknown.")
     return problems
+
+
+def _effective_answer(item: Any, records: list[Any]) -> Any:
+    """Validate partial updates against the fields retained from an explicit ID."""
+    if not isinstance(item, dict) or not item.get("id"):
+        return item
+    previous = next((record for record in records if record.id == item["id"]), None)
+    if previous is None:
+        return item
+    values = previous.model_dump(mode="json")
+    if "claim_text" in values and isinstance(item.get("claim_text"), dict):
+        item = {**item, "claim_text": {**values["claim_text"], **item["claim_text"]}}
+    elif "text" in item and "claim_text" not in item:
+        item = {**item, "claim_text": item["text"]}
+    return {**values, **item}
 
 
 def _check_scene_links(
@@ -795,10 +947,13 @@ def _is_placeholder(value: Any) -> bool:
     }
 
 
-def _check_cxc_mvs_answers(answers: dict[str, Any], semantic: SemanticLayer | None) -> list[str]:
+def _check_cxc_mvs_answers(
+    answers: dict[str, Any], semantic: SemanticLayer | None, *, unchanged_operations: set[str] | None = None,
+) -> list[str]:
     problems: list[str] = []
     if semantic is None:
         return problems
+    unchanged_operations = unchanged_operations or set()
     operation_ids = {operation.operation_id for operation in semantic.observed_scene_operations}
     required_operation_ids = {
         operation.operation_id
@@ -812,6 +967,7 @@ def _check_cxc_mvs_answers(answers: dict[str, Any], semantic: SemanticLayer | No
         )
         or _operation_likely_ligand_claim_central(operation, answers, semantic)
     }
+    required_operation_ids -= unchanged_operations
     native_ref_ids = {ref.native_ref_id for ref in semantic.native_references}
     raw_ids = {raw.raw_id for raw in semantic.raw_native_observations}
     resource_ref_ids = {resource.resource_ref_id for resource in semantic.resource_references}
@@ -885,6 +1041,8 @@ def _check_cxc_mvs_answers(answers: dict[str, Any], semantic: SemanticLayer | No
             if operation_id not in operation_ids:
                 problems.append(f"scene_semantics_by_operation[{index}] references unknown operation_id: {operation_id}")
             answered_operation_ids.add(operation_id)
+        if ids and set(ids) <= unchanged_operations:
+            continue
         source_operation = next(
             (
                 operation
@@ -1081,14 +1239,18 @@ def _apply_cxc_mvs_answers(semantic: SemanticLayer, answers: dict[str, Any]) -> 
         if ref is None:
             continue
         if "stable_identity" in item:
-            ref.stable_identity = str(item["stable_identity"])
+            ref.stable_identity = str(item["stable_identity"]) if item["stable_identity"] is not None else None
             if ref.stable_identity and ref.stable_identity != "unknown":
                 ref.identity_status = "resolved"
         if "target_resolution_status" in item:
             ref.target_resolution_status = TargetResolutionStatus(str(item["target_resolution_status"]))
+        if "identity_status" in item:
+            ref.identity_status = item["identity_status"]
+        if ref.identity_status == "resolved" and _is_placeholder(ref.stable_identity):
+            ref.identity_status = "unresolved"
         if "claim_critical" in item:
             ref.claim_critical = _claim_critical_status(item["claim_critical"])
-        ref.review_status = ReviewStatus.confirmed
+        ref.review_status = ReviewStatus(item.get("review_status", "confirmed"))
     for item in _coerce_list(answers.get("scene_semantics_by_operation", [])):
         if not isinstance(item, dict):
             continue
@@ -1110,13 +1272,32 @@ def _apply_cxc_mvs_answers(semantic: SemanticLayer, answers: dict[str, Any]) -> 
         needs_author_confirmation = False if is_user_reviewed or item_claim_critical == ClaimCriticalStatus.false else _truthy(
             item.get("needs_author_confirmation", getattr(source_operation, "needs_author_confirmation", False))
         )
+        if (
+            source_operation is not None
+            and not is_user_reviewed
+            and not item.get("meaning")
+            and not item.get("no_scientific_meaning_reason")
+            and set(operation_ids) == {source_operation.operation_id}
+            and status == source_operation.meaning_status
+            and needs_author_confirmation == source_operation.needs_author_confirmation
+            and ("claim_critical" not in item or item_claim_critical == source_operation.claim_critical)
+            and item.get("encoding_type", source_operation.operation) == source_operation.operation
+            and all(
+                item.get(field, getattr(source_operation, field)) == getattr(source_operation, field)
+                for field in ("auto_annotation", "candidate_meaning", "meaning_confidence", "meaning_basis")
+            )
+            and not any(set(operation_ids).intersection(entry.operation_ids) for entry in semantic.visual_encoding_semantics)
+        ):
+            # A generated pending prompt preserves the native observation until
+            # the author supplies a meaning or changes its review decision.
+            continue
         semantics = VisualEncodingSemantics(
             operation_ids=operation_ids,
             encoding_type=str(item.get("encoding_type", "visual")),
             meaning_status=status,
             meaning=None if item.get("meaning") is None else str(item.get("meaning")),
-            auto_annotation=str(item.get("auto_annotation") or getattr(source_operation, "auto_annotation", "") or ""),
-            candidate_meaning=str(item.get("candidate_meaning") or getattr(source_operation, "candidate_meaning", "") or ""),
+            auto_annotation=item.get("auto_annotation", getattr(source_operation, "auto_annotation", None)),
+            candidate_meaning=item.get("candidate_meaning", getattr(source_operation, "candidate_meaning", None)),
             meaning_confidence=ConfidenceValue(
                 str(item.get("meaning_confidence") or getattr(source_operation, "meaning_confidence", ConfidenceValue.unknown).value)
             ),
@@ -1129,21 +1310,44 @@ def _apply_cxc_mvs_answers(semantic: SemanticLayer, answers: dict[str, Any]) -> 
             if item.get("no_scientific_meaning_reason") is None
             else str(item.get("no_scientific_meaning_reason")),
             reviewer=str(item.get("reviewer", "author")) if is_user_reviewed else None,
-            reviewed_at=utc_now() if is_user_reviewed else None,
+            reviewed_at=(item.get("reviewed_at") or utc_now()) if is_user_reviewed else None,
         )
+        previous = next((
+            entry for entry in semantic.visual_encoding_semantics
+            if set(semantics.operation_ids) <= set(entry.operation_ids)
+        ), None)
+        reviewed_fields = ("encoding_type", "meaning", "no_scientific_meaning_reason")
+        if previous is not None and is_user_reviewed and any(
+            getattr(previous, field) != getattr(semantics, field) for field in reviewed_fields
+        ):
+            review = _review_fields(
+                {**item, "review_status": "confirmed"},
+                {"review_status": "confirmed", "reviewer": previous.reviewer, "reviewed_at": previous.reviewed_at},
+                content_changed=True,
+            )
+            semantics.reviewer = review["reviewer"]
+            semantics.reviewed_at = review["reviewed_at"]
+            if review["review_status"] == ReviewStatus.needs_review:
+                semantics.meaning_status = MeaningStatus.requires_user_completion
+                semantics.needs_author_confirmation = True
+                is_user_reviewed = False
+        meaning_changed = previous != semantics
         _upsert_visual_semantics(semantic.visual_encoding_semantics, semantics)
         for operation in semantic.observed_scene_operations:
             if operation.operation_id in semantics.operation_ids:
                 operation.meaning_status = semantics.meaning_status
-                operation.auto_annotation = semantics.auto_annotation or operation.auto_annotation
-                operation.candidate_meaning = semantics.candidate_meaning or operation.candidate_meaning
-                operation.meaning_confidence = semantics.meaning_confidence
-                operation.meaning_basis = semantics.meaning_basis or operation.meaning_basis
+                if meaning_changed:
+                    operation.auto_annotation = semantics.auto_annotation or operation.auto_annotation
+                    operation.candidate_meaning = semantics.candidate_meaning or operation.candidate_meaning
+                    operation.meaning_confidence = semantics.meaning_confidence
+                    operation.meaning_basis = semantics.meaning_basis or operation.meaning_basis
                 operation.needs_author_confirmation = semantics.needs_author_confirmation
                 if "claim_critical" in item:
                     operation.claim_critical = _claim_critical_status(item["claim_critical"])
                 if is_user_reviewed:
                     operation.review_status = ReviewStatus.confirmed
+                elif meaning_changed:
+                    operation.review_status = ReviewStatus.needs_review
     for item in _coerce_list(answers.get("raw_resolutions", [])):
         if not isinstance(item, dict):
             continue
@@ -1157,7 +1361,7 @@ def _apply_cxc_mvs_answers(semantic: SemanticLayer, answers: dict[str, Any]) -> 
             raw.resolution = resolution  # type: ignore[assignment]
             if resolution in {"no_scene_effect", "reviewed_no_claim_impact", "not_applicable"}:
                 raw.claim_critical = ClaimCriticalStatus.false
-        raw.review_status = ReviewStatus.confirmed
+        raw.review_status = ReviewStatus(item.get("review_status", "confirmed"))
     for item in _coerce_list(answers.get("resource_bindings", [])):
         if not isinstance(item, dict):
             continue
@@ -1189,17 +1393,22 @@ def _apply_cxc_mvs_answers(semantic: SemanticLayer, answers: dict[str, Any]) -> 
     for item in _coerce_list(answers.get("waivers", [])):
         if not isinstance(item, dict):
             continue
-        semantic.provenance.waivers.append(
-            Waiver(
+        waiver = Waiver(
                 rule_id=str(item.get("rule_id", "UNKNOWN")),
                 scope=str(item.get("scope", item.get("anchor_id", "unknown"))),
                 anchor_id=None if item.get("anchor_id") is None else str(item.get("anchor_id")),
                 reason=str(item.get("reason", "No reason provided.")),
                 reviewer=str(item.get("reviewer", "author")),
-                reviewed_at=utc_now(),
+                reviewed_at=item.get("reviewed_at") or utc_now(),
                 max_export_mode=str(item.get("max_export_mode", "draft")),
             )
-        )
+        identity = (waiver.rule_id, waiver.scope, waiver.anchor_id)
+        for index, previous in enumerate(semantic.provenance.waivers):
+            if (previous.rule_id, previous.scope, previous.anchor_id) == identity:
+                semantic.provenance.waivers[index] = waiver
+                break
+        else:
+            semantic.provenance.waivers.append(waiver)
 
 
 def _claim_critical_status(value: Any) -> ClaimCriticalStatus:
@@ -1234,17 +1443,21 @@ def _apply_reuse(semantic: SemanticLayer, data: dict[str, Any]) -> None:
         semantic.reuse.license = str(data["license"])
         semantic.package.license = str(data["license"])
     if "citation" in data:
-        semantic.reuse.citation = str(data["citation"])
+        semantic.reuse.citation = str(data["citation"]) if data["citation"] is not None else None
     if "restrictions" in data:
         semantic.reuse.restrictions = [str(item) for item in _coerce_list(data["restrictions"])]
-    semantic.reuse.reviewed_at = utc_now()
+    if "reviewer" in data:
+        semantic.reuse.reviewer = data["reviewer"]
+    if data:
+        semantic.reuse.reviewed_at = data.get("reviewed_at", utc_now())
 
 
 def _register_answer_artifacts(
-    root: Path,
+    root: Path | None,
     semantic: SemanticLayer,
     items: Any,
-    answer_base: Path,
+    answer_base: Path | None,
+    registrations: list[tuple[Path, dict[str, Any]]],
 ) -> None:
     for item in _coerce_list(items):
         if not isinstance(item, dict):
@@ -1259,6 +1472,10 @@ def _register_answer_artifacts(
             continue
         if not item.get("path"):
             continue
+        if item.get("role") is not None:
+            ArtifactRole(item["role"])
+        if root is None:
+            continue
         source = _resolve_answer_path(root, answer_base, str(item["path"]))
         if not source.exists():
             raise ValueError(
@@ -1267,30 +1484,44 @@ def _register_answer_artifacts(
                 "Put the file next to the answers file, put it inside the package, or use a url entry."
                 f"{windows_path_hint(item['path'])}"
             )
-        register_local_artifact(
-            root,
-            semantic,
-            source,
-            role=item.get("role"),
-            copy=True,
-            detached=bool(item.get("detached", False)),
-            relative_destination=replay_destination_for(semantic, source),
+        _prepare_local_artifact(
+            root, semantic, source, registrations,
+            role=item.get("role"), detached=bool(item.get("detached", False)),
         )
+
+
+def _prepare_local_artifact(
+    root: Path,
+    semantic: SemanticLayer,
+    source: Path,
+    registrations: list[tuple[Path, dict[str, Any]]],
+    *,
+    role: str | None = None,
+    detached: bool = False,
+):
+    options = {
+        "role": role,
+        "copy": True,
+        "detached": detached,
+        "relative_destination": replay_destination_for(semantic, source),
+    }
+    artifact = register_local_artifact(root, semantic, source, dry_run=True, **options)
+    registrations.append((source, options))
+    return artifact
 
 
 def _apply_entities(semantic: SemanticLayer, items: Any) -> None:
     for index, item in enumerate(_coerce_list(items)):
         if not isinstance(item, dict):
             continue
-        entity = Entity(
-            id=str(item.get("id") or _answer_object_id(semantic, "entity", index)),
-            entity_type=str(item.get("entity_type", "unknown")),
-            label=str(item.get("label", "unknown")),
-            stable_identity=str(item.get("stable_identity", "unknown")),
-            source_artifact_ids=[str(value) for value in _coerce_list(item.get("source_artifact_ids", []))],
-            claim_critical=bool(item.get("claim_critical", False)),
-            review_status=ReviewStatus(str(item.get("review_status", "confirmed"))),
-        )
+        entity_id = str(item.get("id") or _answer_object_id(semantic, "entity", index))
+        previous = next((entry for entry in semantic.entities if entry.id == entity_id), None)
+        values = previous.model_dump() if previous else {"review_status": "confirmed"}
+        values.update({key: value for key, value in item.items() if key in Entity.model_fields})
+        values["id"] = entity_id
+        if "source_artifact_ids" in item:
+            values["source_artifact_ids"] = [str(value) for value in _coerce_list(item["source_artifact_ids"])]
+        entity = Entity.model_validate(values)
         _upsert(semantic.entities, entity)
 
 
@@ -1298,24 +1529,31 @@ def _apply_selections(semantic: SemanticLayer, items: Any) -> None:
     for index, item in enumerate(_coerce_list(items)):
         if not isinstance(item, dict):
             continue
-        selector = str(item.get("native_selector", "unknown"))
-        selection = Selection(
-            id=str(item.get("id") or _answer_object_id(semantic, "selection", index)),
-            name=str(item.get("name", "selection")),
-            native_selector=ProvenancedString(
-                value=selector,
-                source_type=SourceType.user_asserted,
-                confidence=ConfidenceValue.unknown,
-                review_status=ReviewStatus(str(item.get("review_status", "confirmed"))),
-            ),
-            entity_ids=[str(value) for value in _coerce_list(item.get("entity_ids", []))],
-            claim_critical=bool(item.get("claim_critical", False)),
-            review_status=ReviewStatus(str(item.get("review_status", "confirmed"))),
-        )
+        selection_id = str(item.get("id") or _answer_object_id(semantic, "selection", index))
+        previous = next((entry for entry in semantic.selections if entry.id == selection_id), None)
+        values = previous.model_dump() if previous else {"name": "selection", "review_status": "confirmed"}
+        values.update({key: value for key, value in item.items() if key in Selection.model_fields})
+        selector = item.get("native_selector", previous.native_selector.value if previous else "unknown")
+        selector_data = selector if isinstance(selector, dict) else {"value": str(selector)}
+        changed = previous is not None and selector_data.get("value", previous.native_selector.value) != previous.native_selector.value
+        selector_values = previous.native_selector.model_dump() if previous and not changed else {
+            "value": "unknown", "source_type": SourceType.user_asserted,
+            "confidence": ConfidenceValue.unknown,
+            "review_status": item.get("review_status", "confirmed"),
+        }
+        selector_values.update(selector_data)
+        values.update(id=selection_id, native_selector=ProvenancedString.model_validate(selector_values))
+        if "entity_ids" in item:
+            values["entity_ids"] = [str(value) for value in _coerce_list(item["entity_ids"])]
+        selection = Selection.model_validate(values)
+        if changed and "runtime_verification" in selection.extensions:
+            selection.extensions["runtime_verification"] = "unverified"
         _upsert(semantic.selections, selection)
 
 
-def _apply_scene_semantics(semantic: SemanticLayer, items: Any) -> None:
+def _apply_scene_semantics(
+    semantic: SemanticLayer, items: Any, *, validate_references: bool = True
+) -> None:
     for item in _coerce_list(items):
         if not isinstance(item, dict):
             continue
@@ -1325,9 +1563,6 @@ def _apply_scene_semantics(semantic: SemanticLayer, items: Any) -> None:
         ]
         if not target_scenes and semantic.scenes and not target_ids:
             target_scenes = semantic.scenes
-        color_meanings = dict(item.get("color_meanings", {}))
-        label_meanings = dict(item.get("label_meanings", {}))
-        notes = str(item.get("notes", "")).strip()
         if "render_artifact_ids" in item:
             render_ids = [
                 str(value) for value in _coerce_list(item.get("render_artifact_ids", []))
@@ -1338,67 +1573,100 @@ def _apply_scene_semantics(semantic: SemanticLayer, items: Any) -> None:
                 if artifact.role.value == "render_image"
             }
             unknown = sorted(set(render_ids) - known_render_ids)
-            if unknown:
+            if unknown and validate_references:
                 raise ValueError(
                     "Scene answer references unknown rendered-image artifact IDs: "
                     + ", ".join(unknown)
                 )
             if render_ids and len(semantic.scenes) > 1 and not target_ids:
                 raise ValueError(
-                    "Multi-scene render links require explicit scene_ids; ClaimTrace will not guess the matching scene."
+                    "Choose explicit scene_ids to link each rendered image to its matching scene."
                 )
             for scene in target_scenes:
                 scene.render_artifact_ids = sorted(set(render_ids))
-        if not color_meanings and not label_meanings and not notes:
+        if not any(key in item for key in ("color_meanings", "label_meanings", "notes")):
             continue
-        semantics = {
-            "color_meanings": color_meanings,
-            "label_meanings": label_meanings,
-            "notes": notes,
-            "review_status": str(item.get("review_status", "confirmed")),
-            "reviewer": str(item.get("reviewer", "author")),
-            "reviewed_at": utc_now(),
-        }
         for scene in target_scenes:
-            scene.extensions["user_scene_semantics"] = [semantics]
-        _apply_legacy_visual_meanings_to_operations(semantic, semantics)
+            recorded = scene.extensions.get("user_scene_semantics", [])
+            previous = recorded[-1] if recorded else None
+            previous_content = previous or {}
+            semantics = {
+                "color_meanings": dict(item.get("color_meanings", previous_content.get("color_meanings", {}))),
+                "label_meanings": dict(item.get("label_meanings", previous_content.get("label_meanings", {}))),
+                "notes": str(item.get("notes", previous_content.get("notes", ""))).strip(),
+            }
+            if previous is None and not any(semantics.values()):
+                continue
+            changed = previous is not None and any(previous.get(key) != value for key, value in semantics.items())
+            review = _review_fields(item, previous, content_changed=changed)
+            scene_semantics = {**semantics, **review, "review_status": review["review_status"].value}
+            scene.extensions["user_scene_semantics"] = [scene_semantics]
+            _apply_legacy_visual_meanings_to_operations(semantic, scene, scene_semantics, previous_content)
 
 
-def _apply_legacy_visual_meanings_to_operations(semantic: SemanticLayer, semantics: dict[str, Any]) -> None:
+def _legacy_operation_meaning(operation: Any, semantics: dict[str, Any]) -> str | None:
     color_meanings = semantics.get("color_meanings", {})
     label_meanings = semantics.get("label_meanings", {})
-    existing_operation_ids = {
-        op_id for item in semantic.visual_encoding_semantics for op_id in item.operation_ids
-    }
+    if operation.operation == "colored":
+        color = str(operation.details.get("color", ""))
+        return str(color_meanings[color]) if color in color_meanings else None
+    if operation.operation == "labeled":
+        label = str(operation.details.get("label_expression") or operation.target)
+        return str(label_meanings[label]) if label in label_meanings else None
+    return None
+
+
+def _apply_legacy_visual_meanings_to_operations(
+    semantic: SemanticLayer, scene: Scene, semantics: dict[str, Any], previous: dict[str, Any],
+) -> None:
     for operation in semantic.observed_scene_operations:
-        if operation.operation_id in existing_operation_ids:
-            continue
-        meaning: str | None = None
-        if operation.operation == "colored":
-            color = str(operation.details.get("color", ""))
-            if color in color_meanings:
-                meaning = str(color_meanings[color])
-        elif operation.operation == "labeled":
-            label = str(operation.details.get("label_expression") or operation.target)
-            if label in label_meanings:
-                meaning = str(label_meanings[label])
-            elif label_meanings:
-                meaning = "; ".join(f"{key}: {value}" for key, value in label_meanings.items())
-        if not meaning:
-            continue
-        semantic.visual_encoding_semantics.append(
-            VisualEncodingSemantics(
-                operation_ids=[operation.operation_id],
-                encoding_type=operation.operation,
-                meaning_status=MeaningStatus.user_confirmed_meaning,
-                meaning=meaning,
-                reviewer=str(semantics.get("reviewer", "author")),
-                reviewed_at=utc_now(),
-            )
+        scene_id = operation.details.get("scene_id")
+        belongs_to_scene = (
+            scene_id == scene.id if scene_id
+            else operation.source_location.artifact_id in scene.native_artifact_ids
         )
-        existing_operation_ids.add(operation.operation_id)
-        operation.meaning_status = MeaningStatus.user_confirmed_meaning
-        operation.review_status = ReviewStatus.confirmed
+        if not belongs_to_scene:
+            continue
+        existing = next((
+            entry for entry in semantic.visual_encoding_semantics
+            if operation.operation_id in entry.operation_ids
+        ), None)
+        previous_meaning = _legacy_operation_meaning(operation, previous)
+        if existing is not None and (
+            existing.operation_ids != [operation.operation_id]
+            or not previous_meaning or existing.meaning != previous_meaning
+        ):
+            # An independently recorded operation meaning remains authoritative.
+            continue
+        meaning = _legacy_operation_meaning(operation, semantics)
+        if not meaning:
+            if existing is not None:
+                semantic.visual_encoding_semantics.remove(existing)
+                operation.meaning_status = MeaningStatus.requires_user_completion
+                operation.review_status = ReviewStatus.needs_review
+                operation.needs_author_confirmation = True
+            continue
+        reviewed = semantics.get("review_status") in {"confirmed", "human_accepted"}
+        updated = VisualEncodingSemantics(
+            operation_ids=[operation.operation_id],
+            encoding_type=operation.operation,
+            meaning_status=MeaningStatus.user_confirmed_meaning if reviewed else MeaningStatus.requires_user_completion,
+            meaning=meaning,
+            reviewer=semantics.get("reviewer") if reviewed else None,
+            reviewed_at=semantics.get("reviewed_at") if reviewed else None,
+            needs_author_confirmation=not reviewed,
+        )
+        if existing is None:
+            semantic.visual_encoding_semantics.append(updated)
+        else:
+            updated = existing.model_copy(update={
+                field: getattr(updated, field)
+                for field in ("meaning", "meaning_status", "reviewer", "reviewed_at", "needs_author_confirmation")
+            })
+            semantic.visual_encoding_semantics[semantic.visual_encoding_semantics.index(existing)] = updated
+        operation.meaning_status = MeaningStatus.user_confirmed_meaning if reviewed else MeaningStatus.requires_user_completion
+        operation.review_status = ReviewStatus.confirmed if reviewed else ReviewStatus.needs_review
+        operation.needs_author_confirmation = not reviewed
 
 
 def _apply_claim(
@@ -1408,92 +1676,99 @@ def _apply_claim(
     answer_index: int = 0,
     answer_count: int = 1,
 ) -> str:
+    if not data.get("id") and len(semantic.claims) > 1:
+        raise ValueError("claim.id is required when the package contains multiple claims; choose an existing ID or a new ID.")
     claim_id = str(
         data.get("id")
         or (
             semantic.claims[0].id
-            if answer_count == 1 and semantic.claims
+            if answer_count == 1 and len(semantic.claims) == 1
             else _answer_object_id(semantic, "claim", answer_index)
         )
     )
-    review_status = ReviewStatus(str(data.get("review_status", "confirmed")))
-    claim = Claim(
+    previous = next((item for item in semantic.claims if item.id == claim_id), None)
+    values = previous.model_dump() if previous else {"claim_status": "reviewable"}
+    values.update({key: value for key, value in data.items() if key in Claim.model_fields})
+    for field in ("scene_ids", "evidence_ids", "uncertainty_ids"):
+        if field in data:
+            values[field] = [str(value) for value in _coerce_list(data[field])]
+    text_data = data.get("claim_text", data.get("text"))
+    text_values = previous.claim_text.model_dump() if previous else {"value": "unknown"}
+    if isinstance(text_data, dict):
+        text_values.update(text_data)
+    elif text_data is not None:
+        text_values["value"] = str(text_data)
+    text_metadata = text_data.copy() if isinstance(text_data, dict) else {}
+    for key in ("source_type", "source_location", "confidence", "review_status", "reviewer", "reviewed_at"):
+        if key in data:
+            text_metadata[key] = data[key]
+    if previous and text_values["value"] != previous.claim_text.value:
+        for key, default in (("source_type", "user_asserted"), ("source_location", None), ("confidence", "unknown")):
+            if key not in text_metadata:
+                text_values[key] = default
+    text_values.update(text_metadata)
+    candidate_values = {**values, "id": claim_id, "claim_text": text_values}
+    candidate = Claim.model_validate(candidate_values)
+    changed = previous is not None and _reviewed_content(candidate) != _reviewed_content(previous)
+    text_values.update(_review_fields(text_metadata, previous.claim_text if previous else None, content_changed=changed))
+    values.update(
         id=claim_id,
-        claim_text=ProvenancedString(
-            value=str(data.get("claim_text", data.get("text", "unknown"))),
-            source_type=SourceType.user_asserted,
-            confidence=ConfidenceValue.unknown,
-            review_status=review_status,
-            reviewer=str(data.get("reviewer", "author")),
-            reviewed_at=utc_now(),
-        ),
-        claim_type=ClaimType(str(data.get("claim_type", "unknown"))),
-        figure_ref=str(data.get("figure_ref", "unknown")),
-        scope=str(data.get("scope", "unknown")),
-        scene_ids=[str(value) for value in _coerce_list(data.get("scene_ids", []))],
-        evidence_ids=[str(value) for value in _coerce_list(data.get("evidence_ids", []))],
-        uncertainty_ids=[str(value) for value in _coerce_list(data.get("uncertainty_ids", []))],
-        claim_status=str(data.get("claim_status", "reviewable")),
-        review_status=review_status,
+        claim_text=ProvenancedString.model_validate(text_values),
+        review_status=text_values["review_status"],
     )
-    if not claim.scene_ids and len(semantic.scenes) == 1:
+    claim = Claim.model_validate(values)
+    if previous is None and not claim.scene_ids and len(semantic.scenes) == 1:
         claim.scene_ids = [scene.id for scene in semantic.scenes]
     _upsert(semantic.claims, claim)
     return claim.id
 
 
 def _apply_evidence(
-    root: Path,
+    root: Path | None,
     semantic: SemanticLayer,
     items: Any,
-    answer_base: Path,
+    answer_base: Path | None,
     claim_ids: list[str],
+    registrations: list[tuple[Path, dict[str, Any]]],
 ) -> list[str]:
     evidence_ids: list[str] = []
     for index, item in enumerate(_coerce_list(items)):
         if not isinstance(item, dict):
             continue
-        source_ids = [str(value) for value in _coerce_list(item.get("source_artifact_ids", []))]
+        evidence_id = str(item.get("id") or _answer_object_id(semantic, "evidence", index))
+        previous = next((entry for entry in semantic.evidence if entry.id == evidence_id), None)
+        source_fields = ("source_artifact_ids", "source_artifact_roles", "source_artifact_paths")
+        replacing_sources = any(field in item for field in source_fields)
+        source_ids = list(previous.source_artifact_ids) if previous and not replacing_sources else []
+        source_ids.extend(str(value) for value in _coerce_list(item.get("source_artifact_ids", [])))
+        for role in _coerce_list(item.get("source_artifact_roles", [])):
+            ArtifactRole(role)
         source_ids.extend(_artifact_ids_for_roles(semantic, _coerce_list(item.get("source_artifact_roles", []))))
         for source_path in _coerce_list(item.get("source_artifact_paths", [])):
             artifact = find_artifact_by_path(semantic, str(source_path))
-            if artifact is None:
+            if artifact is None and root is not None:
                 resolved = _resolve_answer_path(root, answer_base, str(source_path))
                 if resolved.exists():
-                    artifact = register_local_artifact(
-                        root,
-                        semantic,
-                        resolved,
-                        role=item.get("artifact_role"),
-                        copy=True,
-                        relative_destination=replay_destination_for(semantic, resolved),
+                    artifact = _prepare_local_artifact(
+                        root, semantic, resolved, registrations, role=item.get("artifact_role"),
                     )
             if artifact is not None:
                 source_ids.append(artifact.id)
-        evidence = Evidence(
-            id=str(item.get("id") or _answer_object_id(semantic, "evidence", index)),
-            evidence_kind=EvidenceKind(str(item.get("evidence_kind", "manual_rationale"))),
-            claim_ids=[str(value) for value in _coerce_list(item.get("claim_ids", claim_ids))],
-            source_artifact_ids=sorted(set(source_ids)),
-            target_entity_ids=[str(value) for value in _coerce_list(item.get("target_entity_ids", []))],
-            target_selection_ids=[str(value) for value in _coerce_list(item.get("target_selection_ids", []))],
-            generated_by=str(item.get("generated_by", "author")),
-            method_name=str(item.get("method_name", "manual review")),
-            method_version=None if item.get("method_version") is None else str(item["method_version"]),
-            parameters=dict(item.get("parameters", {})),
-            thresholds=dict(item.get("thresholds", {})),
-            units={str(key): str(value) for key, value in dict(item.get("units", {})).items()},
-            result_summary=str(item.get("result_summary", "unknown")),
-            result_summary_structured=dict(item.get("result_summary_structured", {})),
-            limitations=[str(value) for value in _coerce_list(item.get("limitations", []))],
-            alternative_explanations=[
-                str(value) for value in _coerce_list(item.get("alternative_explanations", []))
-            ],
-            review_status=ReviewStatus(str(item.get("review_status", "confirmed"))),
-            reviewer=str(item.get("reviewer", "author")),
-            reviewed_at=utc_now(),
-            fixity_status="available" if source_ids else "unknown",
-        )
+        values = previous.model_dump() if previous else {
+            "generated_by": "author", "method_name": "manual review", "claim_ids": claim_ids,
+        }
+        values.update({key: value for key, value in item.items() if key in Evidence.model_fields})
+        values.update(id=evidence_id, source_artifact_ids=list(dict.fromkeys(source_ids)))
+        if previous is None or set(source_ids) != set(previous.source_artifact_ids):
+            values["fixity_status"] = item.get("fixity_status", "available" if source_ids else "unknown")
+        for field in ("claim_ids", "target_entity_ids", "target_selection_ids", "limitations", "alternative_explanations"):
+            if field in item:
+                values[field] = [str(value) for value in _coerce_list(item[field])]
+        if "units" in item and isinstance(item["units"], dict):
+            values["units"] = {str(key): str(value) for key, value in item["units"].items()}
+        evidence = Evidence.model_validate(values)
+        changed = previous is not None and _reviewed_content(evidence) != _reviewed_content(previous)
+        evidence = evidence.model_copy(update=_review_fields(item, previous, content_changed=changed))
         _upsert(semantic.evidence, evidence)
         evidence_ids.append(evidence.id)
     return evidence_ids
@@ -1506,34 +1781,70 @@ def _apply_uncertainty(semantic: SemanticLayer, items: Any, claim_ids: list[str]
             item = {"statement": item}
         if not isinstance(item, dict):
             continue
-        uncertainty = Uncertainty(
-            id=str(item.get("id") or _answer_object_id(semantic, "uncertainty", index)),
-            claim_ids=[str(value) for value in _coerce_list(item.get("claim_ids", claim_ids))],
-            category=str(item.get("category", "general")),
-            statement=str(item.get("statement", "unknown")),
-            alternative_explanations=[
-                str(value) for value in _coerce_list(item.get("alternative_explanations", []))
-            ],
-            review_status=ReviewStatus(str(item.get("review_status", "confirmed"))),
-            reviewer=str(item.get("reviewer", "author")),
-            reviewed_at=utc_now(),
-        )
+        uncertainty_id = str(item.get("id") or _answer_object_id(semantic, "uncertainty", index))
+        previous = next((entry for entry in semantic.uncertainty if entry.id == uncertainty_id), None)
+        values = previous.model_dump() if previous else {"claim_ids": claim_ids}
+        values.update({key: value for key, value in item.items() if key in Uncertainty.model_fields})
+        values["id"] = uncertainty_id
+        for field in ("claim_ids", "alternative_explanations"):
+            if field in item:
+                values[field] = [str(value) for value in _coerce_list(item[field])]
+        uncertainty = Uncertainty.model_validate(values)
+        changed = previous is not None and _reviewed_content(uncertainty) != _reviewed_content(previous)
+        uncertainty = uncertainty.model_copy(update=_review_fields(item, previous, content_changed=changed))
         _upsert(semantic.uncertainty, uncertainty)
         uncertainty_ids.append(uncertainty.id)
     return uncertainty_ids
+
+
+def _reviewed_content(record: Any) -> dict[str, Any]:
+    """Scientific content covered by a record's review, excluding review bookkeeping."""
+    values = record.model_dump(mode="json", exclude={
+        "id", "review_status", "reviewer", "reviewed_at", "extensions", "fixity_status", "claim_status",
+    })
+    if isinstance(record, Claim):
+        values["claim_text"] = _reviewed_content(record.claim_text)
+    return values
+
+
+def _review_fields(
+    data: dict[str, Any], previous: Any = None, *, content_changed: bool = False,
+) -> dict[str, Any]:
+    """Carry a review forward only while its scientific content is unchanged."""
+    recorded = previous if isinstance(previous, dict) else previous.model_dump() if previous else {}
+    previous_status = ReviewStatus(recorded.get("review_status", "confirmed"))
+    status = ReviewStatus(data.get("review_status", previous_status))
+    reviewed = status in {ReviewStatus.confirmed, ReviewStatus.human_accepted}
+    if previous is not None and content_changed:
+        fresh_review = reviewed and "review_status" in data and (
+            "reviewed_at" not in data
+            or bool(data["reviewed_at"] and data["reviewed_at"] != recorded.get("reviewed_at"))
+        )
+        if fresh_review:
+            return {
+                "review_status": status,
+                "reviewer": data.get("reviewer") or "author",
+                "reviewed_at": data.get("reviewed_at") or utc_now(),
+            }
+        return {"review_status": ReviewStatus.needs_review if reviewed else status, "reviewer": None, "reviewed_at": None}
+    changed = previous is None or status != previous_status
+    return {
+        "review_status": status,
+        "reviewer": data.get("reviewer", ("author" if reviewed else None) if changed else recorded.get("reviewer")),
+        "reviewed_at": data.get("reviewed_at", (utc_now() if reviewed else None) if changed else recorded.get("reviewed_at")),
+    }
 
 
 def _apply_software(semantic: SemanticLayer, items: Any) -> None:
     for index, item in enumerate(_coerce_list(items)):
         if not isinstance(item, dict):
             continue
-        software = SoftwareEnvironment(
-            id=str(item.get("id") or _answer_object_id(semantic, "software", index)),
-            name=str(item.get("name", "unknown")),
-            version=str(item.get("version", "unknown")),
-            role=str(item.get("role", "viewer")),
-            command=None if item.get("command") is None else str(item["command"]),
-        )
+        software_id = str(item.get("id") or _answer_object_id(semantic, "software", index))
+        previous = next((entry for entry in semantic.software_environment if entry.id == software_id), None)
+        values = previous.model_dump() if previous else {"name": "unknown"}
+        values.update({key: value for key, value in item.items() if key in SoftwareEnvironment.model_fields})
+        values["id"] = software_id
+        software = SoftwareEnvironment.model_validate(values)
         _upsert(semantic.software_environment, software)
 
 
@@ -1582,12 +1893,22 @@ def _upsert_visual_semantics(
     items: list[VisualEncodingSemantics],
     item: VisualEncodingSemantics,
 ) -> None:
-    operation_ids = tuple(item.operation_ids)
-    for index, existing in enumerate(items):
-        if tuple(existing.operation_ids) == operation_ids:
-            items[index] = item
-            return
-    items.append(item)
+    operation_ids = set(item.operation_ids)
+    updated = []
+    inserted = False
+    for existing in items:
+        if operation_ids.intersection(existing.operation_ids):
+            remaining = [identity for identity in existing.operation_ids if identity not in operation_ids]
+            if remaining:
+                updated.append(existing.model_copy(update={"operation_ids": remaining}))
+            if not inserted:
+                updated.append(item)
+                inserted = True
+        else:
+            updated.append(existing)
+    if not inserted:
+        updated.append(item)
+    items[:] = updated
 
 
 def _upsert_evidence_binding(items: list[EvidenceBinding], item: EvidenceBinding) -> None:
@@ -1619,6 +1940,23 @@ def ensure_scene_for_images(
         if len(semantic.scenes) == 1:
             scene = semantic.scenes[0]
             scene.render_artifact_ids = sorted(set(scene.render_artifact_ids + render_ids))
+        else:
+            artifacts = {artifact.id: artifact for artifact in semantic.artifacts}
+            linked = {aid for scene in semantic.scenes for aid in scene.render_artifact_ids}
+            for render_id in render_ids:
+                image = artifacts.get(render_id)
+                if render_id in linked or image is None or not image.path:
+                    continue
+                matches = [
+                    scene for scene in semantic.scenes
+                    if any(
+                        aid in artifacts and artifacts[aid].path
+                        and Path(artifacts[aid].path).stem == Path(image.path).stem
+                        for aid in scene.native_artifact_ids
+                    )
+                ]
+                if len(matches) == 1:
+                    matches[0].render_artifact_ids.append(render_id)
         return
     semantic.scenes.append(
         Scene(

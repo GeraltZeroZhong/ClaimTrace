@@ -69,7 +69,8 @@ def test_end_to_end_zip_roundtrip(tmp_path: Path):
         env=env,
     )
     roundtrip.mkdir()
-    subprocess.run(["unzip", "-q", str(zip_path), "-d", str(roundtrip)], check=True)
+    with zipfile.ZipFile(zip_path) as archive:
+        archive.extractall(roundtrip)
     validation_report = json.loads((roundtrip / "validation_report.json").read_text(encoding="utf-8"))
     assert validation_report["revalidation"]["performed_on_exported_package"] is True
     result = subprocess.run(

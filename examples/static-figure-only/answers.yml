@@ -4,25 +4,25 @@ package:
   license: CC-BY-4.0
   profile: static-figure-only
 claim:
-  claim_text: Figure S1 is a static molecular illustration requiring author-provided evidence.
+  claim_text: The example panel is a synthetic placeholder card for an image-first package.
   claim_type: unknown
-  figure_ref: Figure S1
+  figure_ref: Example panel C
   scope: panel
   review_status: confirmed
 evidence:
   - evidence_kind: manual_rationale
     method_name: Author statement
-    result_summary: The static image is included for fixity; underlying native viewer state is unavailable.
+    result_summary: The labeled outline card is attached as the original PNG. A native scene can be added when available.
     source_artifact_roles:
       - render_image
     review_status: confirmed
 scene:
   color_meanings: {}
   label_meanings: {}
-  notes: Static image colors and labels require author interpretation because no native script is available.
+  notes: The outline and label identify a synthetic placeholder image.
 uncertainty:
   category: reproducibility
-  statement: No native script was provided, so visual replay is not available.
+  statement: Visual replay requires a saved native scene and its source files.
   review_status: confirmed
 reuse:
   license: CC-BY-4.0

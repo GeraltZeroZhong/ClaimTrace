@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from claimtrace import init_package
-from claimtrace.errors import SecurityError
+from claimtrace.errors import SecurityError, ValidationError
 from claimtrace.export.directory import export_package
 from claimtrace.importers.experimental.molviewspec import _read_mvs
 from claimtrace.models import SemanticLayer
@@ -32,11 +32,37 @@ def test_absolute_path_rejected():
         "data//model.cif",
         "data/./model.cif",
         "data/../model.cif",
+        "data/figure?.txt",
+        "data/figure*.txt",
+        "data/a|b.txt",
+        "data/a<b.txt",
+        "data/a>b.txt",
+        'data/a"b.txt',
     ],
 )
 def test_nonportable_package_paths_are_rejected(unsafe_path: str):
     with pytest.raises(SecurityError):
         ensure_relative_path(unsafe_path)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows rejects these names at file creation")
+def test_nonportable_attachment_and_export_are_rejected(tmp_path: Path):
+    source = tmp_path / "figure?.txt"
+    source.write_text("Synthetic attachment.\n", encoding="utf-8")
+    package = init_package(blank=True, out=tmp_path / "package")
+
+    with pytest.raises(SecurityError, match="Windows-compatible"):
+        package.add_artifact(source)
+    assert package.semantic_layer.artifacts == []
+    assert not (package.root / "data" / source.name).exists()
+
+    # A file copied into a package outside the registration API receives the
+    # same path check at handoff.
+    (package.root / "data" / source.name).write_bytes(source.read_bytes())
+    output = tmp_path / "handoff.zip"
+    with pytest.raises(ValidationError, match="Windows-compatible"):
+        export_package(package.root, output, mode="draft", zip_output=True)
+    assert not output.exists()
 
 
 def test_mvsx_zip_slip_rejected(tmp_path: Path):

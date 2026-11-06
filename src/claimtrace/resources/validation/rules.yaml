@@ -31,7 +31,7 @@
   blocks_modes: [draft, internal, share, archive]
   waivable: false
 - rule_id: CLAIM.BASIC.REVIEWABLE
-  title: Claims include figure/panel, scene and evidence links
+  title: Claims include a figure or panel label, scene links, and evidence links
   gate: G4_CLAIM_RULES
   severity: ERROR
   finding_class: REVIEWABILITY_ERROR
@@ -39,17 +39,17 @@
   blocks_modes: [share, archive]
   waivable: true
 - rule_id: CLAIM.LIGAND.REQUIRED_CONTACTS
-  title: Ligand binding claim includes structured contact/distance or external validation evidence
+  title: Ligand binding claims include structured contacts, measured distances, or external validation evidence
   gate: G4B_EVIDENCE_MINIMUMS
   severity: ERROR
   finding_class: CLAIM_EVIDENCE_ERROR
   validation_level: L3_CLAIM_EVIDENCE
   blocks_modes: [share, archive]
   applies_when: claim_type == "ligand_binding_pose"
-  suggested_fix: Link the structure and a contact table or measured distances with method/cutoff, or link a relevant validation report.
+  suggested_fix: Link the structure and contact or distance evidence with the method and any contact cutoff, or link a relevant validation report.
   waivable: true
 - rule_id: SCENE.HIDDEN.CRITICAL_REASON
-  title: Figure-central hidden entities include a reason
+  title: Hidden entities central to the claim include a reason
   gate: G5_VISIBILITY
   severity: ERROR
   finding_class: DISCLOSURE_WARNING
@@ -89,7 +89,7 @@
   blocks_modes: [archive]
   waivable: true
 - rule_id: SCENE.MOLECULAR_IDENTITY_UNCONFIRMED
-  title: Figure-central native references include molecular identity
+  title: Native references central to the claim include molecular identity
   gate: G6_NATIVE_STATIC_IMPORT
   severity: ERROR
   finding_class: REVIEWABILITY_ERROR
@@ -97,7 +97,7 @@
   blocks_modes: [share, archive]
   waivable: true
 - rule_id: SCENE.TARGET_RESOLUTION_INCOMPLETE
-  title: Figure-central selectors and native refs are matched to package files
+  title: Scene selectors and references central to the claim are matched to package files
   gate: G6_NATIVE_STATIC_IMPORT
   severity: ERROR
   finding_class: REVIEWABILITY_ERROR
@@ -105,7 +105,7 @@
   blocks_modes: [archive]
   waivable: true
 - rule_id: SCENE.VISUAL_ENCODING.MEANING_MISSING
-  title: Figure-central or uncertain visual encodings are confirmed or marked presentation-only
+  title: Visual encodings central to the claim or awaiting review are confirmed or marked as presentation only
   gate: G6_NATIVE_STATIC_IMPORT
   severity: ERROR
   finding_class: REVIEWABILITY_ERROR
@@ -113,7 +113,7 @@
   blocks_modes: [archive]
   waivable: true
 - rule_id: IMPORT.REMOTE_RESOURCE_DETACHED
-  title: Figure-central detached native resources include fixity or a recorded reason
+  title: Detached native resources central to the claim include checksums or a recorded reason
   gate: G6_NATIVE_STATIC_IMPORT
   severity: ERROR
   finding_class: DISCLOSURE_WARNING

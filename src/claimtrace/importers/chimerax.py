@@ -671,15 +671,13 @@ def _operation_for(command: str, ast: dict[str, Any]) -> str:
 
 
 def _ensure_scene(semantic: SemanticLayer, artifact_id: str) -> str:
-    if semantic.scenes:
-        scene = semantic.scenes[0]
-        if artifact_id not in scene.native_artifact_ids:
-            scene.native_artifact_ids.append(artifact_id)
-        return scene.id
+    for scene in semantic.scenes:
+        if artifact_id in scene.native_artifact_ids:
+            return scene.id
     from claimtrace.models import Scene
 
     scene = Scene(
-        id="scene:native:1",
+        id=_stable_id("scene", "chimerax", artifact_id),
         description="Scene statically extracted from native viewer artifact.",
         native_artifact_ids=[artifact_id],
         review_status=ReviewStatus.needs_review,
@@ -784,7 +782,7 @@ def _native_refs(
     native_text: str,
 ) -> list[NativeReference]:
     refs = []
-    for token in target.split():
+    for token in dict.fromkeys(target.split()):
         if token.startswith("#") and len(token) > 1:
             refs.append(
                 NativeReference(
@@ -815,7 +813,9 @@ def _resource_references(
     sources = _open_source_tokens(args)
     return [
         ResourceReference(
-            resource_ref_id=_stable_id("resource", "chimerax", artifact_id, operation_id, token.value),
+            resource_ref_id=_stable_id(
+                "resource", "chimerax", artifact_id, operation_id, token.value, str(token.column),
+            ),
             artifact_id=artifact_id,
             uri=token.value,
             uri_kind=_uri_kind(token.value),

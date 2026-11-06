@@ -4,9 +4,9 @@ package:
   license: unknown
   profile: simple-structure-view
 claim:
-  claim_text: "TODO: write the figure or panel message"
+  claim_text: "TODO: write one sentence stating what this figure or panel shows"
   claim_type: simple_structure_view
-  figure_ref: 'TODO: add figure/panel label'
+  figure_ref: 'TODO: add the figure or panel label'
   scope: panel
 artifacts:
   - path: model.cif
@@ -14,7 +14,7 @@ artifacts:
 entities: []
 evidence:
   - evidence_kind: manual_rationale
-    method_name: "TODO: name the review or evidence method"
+    method_name: "TODO: name the inspection or analysis used to check this claim"
     result_summary: "TODO: explain which attached files support this panel and how"
     source_artifact_roles:
       - native_script
@@ -26,7 +26,7 @@ scene:
   notes: ''
 uncertainty:
   category: scope
-  statement: "TODO: add a useful caveat, or set uncertainty: [] if none applies"
+  statement: "TODO: add a relevant limitation, or set uncertainty: [] if none applies"
 reuse:
   license: unknown
   citation: unknown

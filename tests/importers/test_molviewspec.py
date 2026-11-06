@@ -93,8 +93,92 @@ def test_mvsx_import_builds_inventory_and_links_archive_member(tmp_path: Path):
 
 
 @pytest.mark.parametrize(
+    ("scene_entry", "uri", "member_name"),
+    [
+        ("index.mvsj", "./model.cif", "model.cif"),
+        ("index.mvsj", "data/../model.cif", "model.cif"),
+        ("scenes/view.mvsj", "../data/model.cif", "data/model.cif"),
+        ("index.mvsj", "./model%20one.cif", "model one.cif"),
+        ("index.mvsj", "%E6%A8%A1%E5%9E%8B.cif", "模型.cif"),
+    ],
+)
+def test_mvsx_relative_resource_dot_segments_resolve_to_files(
+    tmp_path: Path, scene_entry: str, uri: str, member_name: str,
+):
+    archive = tmp_path / "scene.mvsx"
+    data = _basic_mvs_tree()
+    data["root"]["children"][0]["params"]["url"] = uri
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr(scene_entry, json.dumps(data))
+        zf.writestr(member_name, "data_model\n")
+    semantic = SemanticLayer.new("pkg-test")
+
+    MolViewSpecImporter().import_into(archive, "artifact:mvsx", semantic)
+
+    resource = semantic.resource_references[0]
+    member = next(item for item in semantic.mvsx_inventories[0].members
+                  if item.normalized_name == member_name)
+    assert resource.uri == uri
+    assert resource.uri_kind == "archive_member"
+    assert resource.mvsx_member_id == member.member_id
+    assert member.referenced
+
+
+@pytest.mark.parametrize(
+    ("member_name", "uri"),
+    [
+        ("model.cif", "model.cif?version=1"),
+        ("model.cif", "model.cif#focus"),
+        ("folder/model.cif", "folder%2Fmodel.cif"),
+        ("model#focus.cif", "model%23focus.cif"),
+    ],
+)
+def test_mvsx_resource_url_keys_preserve_reserved_characters(
+    tmp_path: Path, member_name: str, uri: str,
+):
+    archive = tmp_path / "scene.mvsx"
+    data = _basic_mvs_tree()
+    data["root"]["children"][0]["params"]["url"] = uri
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("index.mvsj", json.dumps(data))
+        zf.writestr(member_name, "data_model\n")
+    semantic = SemanticLayer.new("pkg-test")
+
+    MolViewSpecImporter().import_into(archive, "artifact:mvsx", semantic)
+
+    resource = semantic.resource_references[0]
+    assert resource.uri_kind in {"unknown", "missing_archive_member"}
+    assert resource.mvsx_member_id is None
+    assert resource.fixity_status == "unknown"
+
+
+def test_mvsx_directory_resource_remains_missing_and_requires_review(tmp_path: Path):
+    from claimtrace import init_package
+
+    archive = tmp_path / "scene.mvsx"
+    data = _basic_mvs_tree()
+    data["root"]["children"][0]["params"]["url"] = "data/"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("index.mvsj", json.dumps(data))
+        zf.writestr("data/", "")
+        zf.writestr("data/model.cif", "data_model\n")
+
+    package = init_package(native=archive, out=tmp_path / "package")
+
+    resource = package.semantic_layer.resource_references[0]
+    assert resource.uri_kind == "missing_archive_member"
+    assert resource.fixity_status == "unknown"
+    assert resource.mvsx_member_id is None
+    report = package.validate(mode="archive")
+    assert any(item.rule_id == "IMPORT.MVSX.MEMBER_MISSING" for item in report.findings)
+
+
+@pytest.mark.parametrize(
     "bad_name",
-    ["../evil.txt", "C:/secret.txt", r"nested\\evil.txt", "nested//evil.txt", "nested/./evil.txt"],
+    [
+        "../evil.txt", "C:/secret.txt", r"nested\\evil.txt", "nested//evil.txt", "nested/./evil.txt",
+        "data/a?.cif", "data/a*.cif", "data/a|b.cif", "data/a<b.cif", "data/a>b.cif", 'data/a"b.cif',
+    ],
 )
 def test_mvsx_rejects_unsafe_member_names(tmp_path: Path, bad_name: str):
     archive = tmp_path / "bad.mvsx"

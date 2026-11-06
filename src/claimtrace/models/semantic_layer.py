@@ -553,8 +553,12 @@ class SemanticLayer(StrictModel):
         agent_id = str(extra.pop("agent_id", "agent:claimtrace"))
         used_artifact_ids = [str(value) for value in extra.pop("used_artifact_ids", [])]
         generated_ids = [str(value) for value in extra.pop("generated_ids", [])]
+        existing_ids = {item.id for item in self.provenance.activities}
+        index = len(self.provenance.activities) + 1
+        while f"activity:{activity_type}:{index}" in existing_ids:
+            index += 1
         activity = Activity(
-            id=f"activity:{activity_type}:{len(self.provenance.activities) + 1}",
+            id=f"activity:{activity_type}:{index}",
             activity_type=activity_type,
             agent_id=agent_id,
             used_artifact_ids=used_artifact_ids,

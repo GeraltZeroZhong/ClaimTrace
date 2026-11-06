@@ -54,9 +54,9 @@ class ImageImporter:
         task = CompletionTask(
             id="task:image-claim-context",
             section="claim",
-            question="What claim, if any, should this static image be linked to?",
+            question="Which figure statement does this image illustrate?",
             target_json_pointer="/claims",
-            field_use="A static image cannot reveal molecular identity, camera, selections or claim meaning by itself.",
+            field_use="Link the image to its source structure, saved view, selections and figure statement.",
             examples=["Figure 1A shows an overview of chain A.", "unknown"],
             accepted_values=["free text", "unknown", "not_applicable"],
             blocking=False,
@@ -82,6 +82,12 @@ def inspect_image(path: Path) -> dict[str, Any]:
                 detected_format = str(image.format or "").upper()
                 dimensions = tuple(int(value) for value in image.size)
                 image.verify()
+            # verify() checks container structure; JPEG also needs a full
+            # pixel decode to detect truncated image data.
+            with Image.open(path) as image:
+                for frame in range(getattr(image, "n_frames", 1)):
+                    image.seek(frame)
+                    image.load()
     except Exception as exc:
         raise ValueError(
             f"Rendered image cannot be decoded as a valid {suffix.lstrip('.').upper()} file: {path}."

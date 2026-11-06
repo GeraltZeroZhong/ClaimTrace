@@ -1,0 +1,4 @@
+interface:
+  display_name: "ClaimTrace"
+  short_description: "Trace molecular figure claims to their evidence"
+  default_prompt: "Use $claimtrace to inspect this molecular figure claim and trace its evidence, provenance, uncertainty, and reproducibility."
