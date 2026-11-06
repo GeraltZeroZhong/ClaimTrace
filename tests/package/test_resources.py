@@ -88,3 +88,27 @@ def test_json_resource_binding_resolves_only_the_same_json_pointer():
 
     assert matching_ref.target_resolution_status == "resolved_against_artifact"
     assert unrelated_ref.target_resolution_status == "expression_only"
+
+
+def test_reviewed_detached_binding_keeps_its_recorded_fixity():
+    location = SimpleNamespace(artifact_id="artifact:pml", line=1, column=1, json_pointer=None)
+    resource = SimpleNamespace(
+        uri="model.cif", uri_kind="relative", artifact_id="artifact:pml",
+        source_location=location, fixity_status="available", fetch_status="not_fetched",
+    )
+    native_ref = SimpleNamespace(
+        source_location=location, target_resolution_status="resolved_against_artifact",
+    )
+    semantic = SimpleNamespace(
+        artifacts=[
+            _artifact(id="artifact:pml", path="native/view.pml"),
+            _artifact(id="artifact:model", path="native/model.cif",
+                      kind="local_detached", included=False),
+        ],
+        resource_references=[resource], native_references=[native_ref],
+    )
+
+    synchronize_resource_bindings(semantic)
+
+    assert resource.fixity_status == "available"
+    assert native_ref.target_resolution_status == "resolved_against_artifact"

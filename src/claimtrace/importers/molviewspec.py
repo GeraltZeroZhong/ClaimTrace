@@ -14,6 +14,7 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from claimtrace._finite import ensure_finite
 from claimtrace.errors import SecurityError
@@ -499,7 +500,7 @@ def _read_mvsx(path: Path, artifact_id: str) -> MVSReadResult:
             extras = [name for name in mvsj_entries if name != scene_entry]
             if extras:
                 warnings.append(
-                    "Additional .mvsj members were inventoried but not parsed: " + ", ".join(extras[:5])
+                    "Additional .mvsj members are listed for separate inspection: " + ", ".join(extras[:5])
                 )
         elif not top_level and len(mvsj_entries) == 1:
             scene_entry = mvsj_entries[0]
@@ -1150,15 +1151,13 @@ def _raw_fact(raw: RawNativeObservation, index: int) -> ExtractedFact:
 
 
 def _ensure_scene(semantic: SemanticLayer, artifact_id: str) -> str:
-    if semantic.scenes:
-        scene = semantic.scenes[0]
-        if artifact_id not in scene.native_artifact_ids:
-            scene.native_artifact_ids.append(artifact_id)
-        return scene.id
+    for scene in semantic.scenes:
+        if artifact_id in scene.native_artifact_ids:
+            return scene.id
     from claimtrace.models import Scene
 
     scene = Scene(
-        id="scene:native:1",
+        id=_stable_id("scene", "molviewspec", artifact_id),
         description="Scene statically extracted from native viewer artifact.",
         native_artifact_ids=[artifact_id],
         review_status=ReviewStatus.needs_review,
@@ -1194,7 +1193,7 @@ def _completion_tasks_for_mvs(semantic: SemanticLayer) -> list[CompletionTask]:
             CompletionTask(
                 id="task:mvs-resource-bindings",
                 section="evidence",
-                question="Which MolViewSpec resources should travel with the package, and which are just scene references?",
+                question="Which MolViewSpec resources should be included as files or retained as scene references?",
                 target_json_pointer="/resource_references",
                 field_use="This helps readers know which structures, maps or annotations they need to inspect.",
                 examples=["resource:... include as figure data", "resource:... scene reference only"],
@@ -1283,13 +1282,33 @@ def _uri_kind(
     if inventory:
         try:
             base = posixpath.dirname(scene_entry or "index.mvsj")
-            normalized = _normalize_member_name(posixpath.join(base, uri))
+            # Resource URIs may contain dot segments (for example the official
+            # ``./annotations.json`` form). Resolve them before applying the
+            # stricter checks used for stored archive member names.
+            normalized = _normalize_member_name(posixpath.normpath(posixpath.join(base, uri)))
         except SecurityError:
             return "unknown", None
-        if any(member.normalized_name == normalized for member in inventory.members):
-            return "archive_member", normalized
+        resource_key = _archive_url_key(normalized)
+        for member in inventory.members:
+            if not member.is_dir and _archive_url_key(member.normalized_name) == resource_key:
+                return "archive_member", member.normalized_name
         return "missing_archive_member", normalized
     return "relative", None
+
+
+def _archive_url_key(path: str) -> str:
+    """Encode an archive path as Mol* does when registering its URL asset.
+
+    Compare encoded keys instead of decoding references: ``%2F`` and ``%23``
+    retain their distinction from a path separator and a fragment delimiter.
+    Query strings remain subject to the stored-path checks above.
+    """
+
+    filename, separator, fragment = path.partition("#")
+    encoded = quote(filename, safe="/%:@!$&'()*+,;=-._~[]")
+    if separator:
+        encoded += "#" + quote(fragment, safe="/%:@!$&'()*+,;=-._~[]^{}?")
+    return encoded
 
 
 def _mark_inventory_reference(inventory: MVSXInventory | None, resource: ResourceReference, pointer: str) -> None:

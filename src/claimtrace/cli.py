@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import sys
 from typing import Any, Optional
 from typing import List
 
@@ -12,6 +14,7 @@ from rich.console import Console
 from rich.table import Table
 
 from claimtrace import _simple_yaml
+from claimtrace.agent_cli import agent_app
 from claimtrace._finite import ensure_finite
 from claimtrace.api import export_package as api_export_package
 from claimtrace.api import init_package, load_package
@@ -19,7 +22,6 @@ from claimtrace.completion import (
     apply_answers,
     available_templates,
     check_answers,
-    completed_answer_sections,
     completion_tasks_for_template,
     dump_package_answer_template,
     load_answers,
@@ -33,7 +35,7 @@ from claimtrace.errors import (
     ValidationError,
 )
 from claimtrace.models.semantic_layer import ArtifactRole, ClaimCriticalStatus, MeaningStatus
-from claimtrace.package.layout import read_completion_tasks, read_json, write_completion_tasks, write_json
+from claimtrace.package.layout import read_completion_tasks, read_json, update_completion_tasks, write_completion_tasks, write_json
 from claimtrace.package.registry import infer_role
 from claimtrace.package.resources import resource_matches_artifact, resource_uri_summary
 from claimtrace.path_hints import windows_path_hint
@@ -41,24 +43,35 @@ from claimtrace.schemas import semantic_layer_schema, validation_report_schema
 from claimtrace.validation.engine import validate_package
 
 APP_HELP = (
-    "ClaimTrace packages molecular figure context from .pml, .cxc, .mvsj and .mvsx "
-    "scene files, rendered panels and supporting evidence."
+    "Prepare, review and share the evidence behind a molecular figure. "
+    "Begin with a scene or image, add its scientific context, then export a review package."
 )
-APP_EPILOG = "Run `claimtrace quickstart` for a copy/paste workflow and supported input formats."
+APP_EPILOG = "Start with `claimtrace prepare` in your terminal or `claimtrace gui` in your browser."
 
 app = typer.Typer(help=APP_HELP, epilog=APP_EPILOG)
+app.add_typer(agent_app, name="agent", rich_help_panel="Agent assistance")
 console = Console()
 
 MODE_HELP = "Validation mode. Choices: draft, internal, share, archive."
 TEXT_JSON_HELP = "Output format. Choices: text, json."
 TEMPLATE_HELP = (
     "Completion template. Choices: auto, simple-structure-view, ligand-binding-pose. "
-    "Auto uses ligand-binding-pose only when pocket, binding-site, contact or distance context is present; "
-    "a scene that merely displays a ligand stays simple-structure-view."
+    "Auto selects ligand-binding-pose for pocket, binding-site, contact or distance context; "
+    "other structure views use simple-structure-view."
 )
 SECTION_CHOICES = {"claim", "entities", "scene", "evidence", "uncertainty", "reuse"}
 ARTIFACT_ROLE_CHOICES = {role.value for role in ArtifactRole}
 NATIVE_SCENE_SUFFIXES = {".pml", ".cxc", ".mvsj", ".mvsx"}
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".gif", ".webp", ".svg"}
+
+
+def run() -> None:
+    """Run the CLI with UTF-8 redirected streams on Windows."""
+    if sys.platform == "win32" and not os.environ.get("PYTHONIOENCODING"):
+        for stream in (sys.stdin, sys.stdout, sys.stderr):
+            if stream is not None and not stream.isatty() and hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8", errors=stream.errors)
+    app()
 
 
 @app.callback(invoke_without_command=True)
@@ -74,9 +87,85 @@ def main(
         raise typer.Exit(0)
 
 
-@app.command(rich_help_panel="Main workflow")
+@app.command(rich_help_panel="Open the workspace")
+def skill(
+    out: Optional[Path] = typer.Option(None, "--out", help="Copy the bundled skill into this new folder."),
+) -> None:
+    """Locate or copy the companion skill for a compatible agent client."""
+    import shutil
+
+    source = Path(__file__).parent / "resources" / "skills" / "claimtrace"
+    try:
+        if not (source / "SKILL.md").is_file():
+            raise PackageError("Reinstall ClaimTrace to restore its companion skill.")
+        if out is None:
+            typer.echo(str((source / "SKILL.md").resolve()))
+            return
+        destination = out.expanduser().resolve()
+        if destination.exists():
+            raise ValueError("Choose a new folder for the companion skill.")
+        shutil.copytree(source, destination)
+        typer.echo(f"Skill saved: {destination / 'SKILL.md'}")
+    except Exception as exc:
+        _handle_error(exc)
+
+
+@app.command(rich_help_panel="Open the workspace")
+def gui(
+    package: Optional[Path] = typer.Argument(None, help="Existing package to open in the GUI."),
+    port: int = typer.Option(8765, "--port", min=0, max=65535, help="Local HTTP port; 0 selects a free port."),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Print the URL without opening a browser."),
+) -> None:
+    """Prepare a figure, review its claims and export a package in your browser."""
+
+    from claimtrace.gui.server import serve
+
+    try:
+        serve(package=package, port=port, open_browser=not no_browser)
+    except (ClaimTraceError, OSError, ValueError) as exc:
+        console.print(f"GUI startup needs attention: {exc}", markup=False)
+        raise typer.Exit(1) from exc
+
+
+@app.command(rich_help_panel="Open the workspace")
+def prepare(
+    package: Optional[Path] = typer.Argument(None, help="Existing package, or omit to choose files or an example."),
+    expert: bool = typer.Option(False, "--expert", help="Show record IDs and detailed authoring actions."),
+    claim: Optional[str] = typer.Option(None, "--claim", help="Select a claim by its ID or 1-based number."),
+    example: Optional[str] = typer.Option(None, "--example", help="Practice example ID. See `claimtrace examples`."),
+    workspace: Optional[Path] = typer.Option(None, "--workspace", help="Folder for new packages and working copies."),
+) -> None:
+    """Prepare a figure statement, evidence and limitations step by step."""
+    from claimtrace.terminal import prepare_terminal
+
+    try:
+        if package is not None and example is not None:
+            raise ValueError("Choose an existing package or a practice example with --example.")
+        resolved = _resolve_package_argument(package) if package is not None else None
+        prepare_terminal(resolved, expert=expert, example=example, workspace=workspace, claim_id=claim)
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        _handle_error(exc)
+
+
+@app.command(rich_help_panel="Open the workspace")
+def examples() -> None:
+    """List the practice examples shared by the terminal and browser."""
+    from claimtrace.gui.examples import example_catalog
+
+    typer.echo("Synthetic practice examples")
+    typer.echo("")
+    for item in example_catalog():
+        typer.echo(f"{item['id']} — {item['title']}")
+        typer.echo(f"  {item['description']}")
+    typer.echo("")
+    typer.echo("Start: claimtrace prepare --example highlight-residues")
+
+
+@app.command(rich_help_panel="Open the workspace")
 def quickstart() -> None:
-    """Print the shortest end-to-end workflow for a molecular scene file."""
+    """Print the Prepare, Review and Export terminal workflow."""
 
     typer.echo(
         "\n".join(
@@ -86,49 +175,45 @@ def quickstart() -> None:
                 "Install:",
                 "   python -m pip install claimtrace",
                 "",
+                "Try a practice example:",
+                "   claimtrace prepare --example highlight-residues",
+                "",
                 "Supported native scene files: .pml, .cxc, .mvsj, .mvsx",
-                "Also include the rendered panel image and any structure, map, contact table, validation report or note that supports the figure.",
-                "On WSL, use a /mnt/c/... path instead of a C:\\... path.",
+                "On WSL, use a /mnt/c/... path for Windows files.",
                 "",
-                "1. Create a draft package:",
-                '   claimtrace init "figure_A.pml" --image "figure_A.png" --artifact "model.cif" --out "scene-package"',
-                "   # The same positional command works for every native scene format:",
-                '   claimtrace init "figure_A.cxc" --out "scene-package"',
-                '   claimtrace init "figure_A.mvsj" --out "scene-package"',
-                '   claimtrace init "figure_A.mvsx" --out "scene-package"',
+                "1. Prepare the figure and its source files:",
+                '   claimtrace init --file "figure_A.pml" --file "figure_A.png" --file "model.cif" --out "scene-package"',
+                "   To begin with an image:",
+                '   claimtrace init --image "figure_A.png" --out "scene-package"',
                 "",
-                "2. See what ClaimTrace recognized automatically:",
-                '   claimtrace inspect "scene-package"',
+                "2. Add the claim and review the imported context:",
+                '   claimtrace prepare "scene-package"',
+                "   Each saved step is available in the terminal and browser.",
                 "",
-                "3. Edit the package-aware answers file created by init:",
+                "3. Review the record for a collaborator:",
+                '   claimtrace review "scene-package"',
+                "",
+                "4. Export the record and its source files:",
+                '   claimtrace export "scene-package"',
+                "   Review and export use the saved purpose, starting with Working draft.",
+                "   Use --mode share for External review or --mode archive for an Archive.",
+                "",
+                "Open the same package in your browser:",
+                '   claimtrace gui "scene-package"',
+                "",
+                "For scripted completion:",
                 '   Edit "scene-package/answers.yml" in your text editor.',
-                "",
-                "   Fill claim.claim_text and claim.figure_ref first.",
-                "   Describe evidence only when the supporting file or note is actually available.",
-                "   For color/label suggestions, choose one:",
-                "   - user_confirmed_meaning: this visual choice carries the figure message",
-                "   - user_declared_no_scientific_meaning: it is only for contrast or readability",
-                "   - claim_critical: false — it is not central to this figure or panel",
-                "",
-                "4. Check and apply answers:",
                 '   claimtrace complete "scene-package" --check-answers "scene-package/answers.yml"',
                 '   claimtrace complete "scene-package" --answers "scene-package/answers.yml"',
                 "",
-                "5. Validate the current draft:",
-                '   claimtrace validate "scene-package" --mode draft --format text',
-                "",
-                "6. When the required render, data, evidence and confirmations are present, validate and export the archive:",
-                '   claimtrace validate "scene-package" --mode archive --format text',
-                '   claimtrace export "scene-package" --mode archive --out "scene-package.zip"',
-                "",
-                "Tip: ClaimTrace reads native files statically. It does not run viewer scripts or fetch remote URLs.",
+                "Scene import preserves source expressions. Native-viewer replay is a separate check.",
             ]
         )
     )
 
 
 @app.command(
-    rich_help_panel="Main workflow",
+    rich_help_panel="Prepare",
     epilog=(
         "Examples:\n\n"
         '  claimtrace init "figure_A.pml" --image "figure_A.png" --artifact "model.cif" --out "scene-package"\n\n'
@@ -146,7 +231,7 @@ def init(
     native: Optional[List[Path]] = typer.Option(
         None,
         "--native",
-        help="Native viewer file: .pml, .cxc, .mvsj or .mvsx. Repeat for multiple files; parsed statically, not executed.",
+        help="Scene file: .pml, .cxc, .mvsj or .mvsx. Repeat for multiple files. Import reads the saved scene instructions.",
     ),
     image: Optional[List[Path]] = typer.Option(
         None,
@@ -157,6 +242,11 @@ def init(
         None,
         "--artifact",
         help="Supporting file to include, e.g. structure, map, contact table, report or note. Repeat for multiple files.",
+    ),
+    files: Optional[List[Path]] = typer.Option(
+        None,
+        "--file",
+        help="Input file; scenes, images and supporting files are identified by format. Repeat for multiple files.",
     ),
     out: Path = typer.Option(Path("scene-package"), "--out", help="Output package directory."),
     template: str = typer.Option("auto", "--template", help=TEMPLATE_HELP),
@@ -175,17 +265,32 @@ def init(
     ),
     format: str = typer.Option("text", "--format", help=TEXT_JSON_HELP),
 ) -> None:
-    """Create a scene package from native viewer files, rendered images and evidence artifacts."""
+    """Create a draft from a scene or figure image and supporting files."""
 
     try:
         _validate_choice(format, {"text", "json"}, "format")
         _validate_choice(template, {"auto", *available_templates()}, "template")
         native_inputs = _validated_native_inputs(scene, native, blank=blank, image=image, artifact=artifact)
+        image_inputs = list(image or [])
+        artifact_inputs = list(artifact or [])
+        if blank and files:
+            raise ValueError("Use --blank on its own, or provide input files.")
+        seen = {path.resolve() for path in native_inputs + image_inputs + artifact_inputs}
+        for path in files or []:
+            if path.resolve() in seen:
+                continue
+            seen.add(path.resolve())
+            if path.suffix.lower() in NATIVE_SCENE_SUFFIXES:
+                native_inputs.append(path)
+            elif path.suffix.lower() in IMAGE_SUFFIXES:
+                image_inputs.append(path)
+            else:
+                artifact_inputs.append(path)
         initial_template = "simple-structure-view" if template == "auto" else template
         pkg = init_package(
             native=native_inputs,
-            image=image,
-            artifacts=artifact,
+            image=image_inputs,
+            artifacts=artifact_inputs,
             out=out,
             template=initial_template,
             title=title,
@@ -228,62 +333,34 @@ def init(
         if format == "json":
             typer.echo(json.dumps(payload, indent=2, ensure_ascii=False))
         else:
-            typer.echo(f"Created ClaimTrace scene package: {pkg.root}")
-            typer.echo(f"Semantic layer: {pkg.root / 'semantic_layer.json'}")
-            typer.echo(f"Package-aware answers template: {answers_path}")
-            typer.echo(f"Completion profile: {resolved_template}")
-            typer.echo("Static import only: viewer scripts were not executed; remote resources were recorded, not fetched.")
-            init_tasks = read_completion_tasks(pkg.root)
-            required_task_count = sum(1 for task in init_tasks if task.status == "open" and task.blocking)
-            optional_task_count = sum(1 for task in init_tasks if task.status == "open" and not task.blocking)
-            observed = len(pkg.semantic_layer.observed_scene_operations)
-            if observed:
-                typer.echo(f"Observed scene operations: {observed}")
-            raw_count = len(pkg.semantic_layer.raw_native_observations)
-            if raw_count:
-                typer.echo(f"Items needing author review: {raw_count} (run inspect to see locations and reasons)")
-            for warning in _import_warning_lines(pkg.semantic_layer):
-                typer.echo(f"Import note: {warning}")
-            for line in _resource_hint_lines(pkg.semantic_layer, pkg.root):
-                typer.echo(line)
+            typer.echo(f"Created draft: {pkg.root}")
+            _echo_materials(pkg.semantic_layer)
             if unlinked_renders:
-                typer.echo(
-                    "Rendered panels were not auto-linked because this package has multiple scenes. "
-                    "Choose the matching scene explicitly:"
-                )
-                for render in unlinked_renders:
-                    render_path = pkg.root / str(render.path)
-                    typer.echo(
-                        "  claimtrace add-artifact "
-                        f"{_quoted_path(pkg.root)} {_quoted_path(render_path)} "
-                        "--role render_image --scene <scene-id>"
-                    )
-                typer.echo(
-                    "  Scene IDs: " + ", ".join(item.id for item in pkg.semantic_layer.scenes)
-                )
-            if required_task_count or optional_task_count:
-                typer.echo(
-                    f"Completion prompts: {required_task_count} required, {optional_task_count} optional review"
-                )
+                typer.echo(f"Figure matching: {len(unlinked_renders)} image(s) need a scene.")
+            for warning in _import_warning_lines(pkg.semantic_layer, limit=2):
+                typer.echo(f"Import note: {warning}")
+            if blank:
+                typer.echo("Empty draft: add a scene or figure image in the workspace.")
+            elif not native_inputs and image_inputs:
+                typer.echo("Image draft: add the figure claim and its evidence in the workspace.")
+            elif not native_inputs:
+                typer.echo("Files draft: record a draft claim and add its figure or scene when ready.")
+            elif not linked_render_ids:
+                typer.echo("Scene draft: add the rendered figure in the workspace.")
             typer.echo("")
-            typer.echo("Next:")
-            typer.echo(f"  claimtrace inspect {_quoted_path(pkg.root)}")
-            typer.echo(f"  Edit {_quoted_path(answers_path)} in your text editor.")
-            typer.echo("  Fill the claim first; describe only evidence and color/label meanings you can support.")
-            typer.echo(
-                f"  claimtrace complete {_quoted_path(pkg.root)} --check-answers {_quoted_path(answers_path)}"
-            )
-            typer.echo(f"  claimtrace complete {_quoted_path(pkg.root)} --answers {_quoted_path(answers_path)}")
+            typer.echo(f"Next: claimtrace prepare {_quoted_path(pkg.root)}")
+
     except Exception as exc:
         _handle_error(exc)
 
 
-@app.command(rich_help_panel="Main workflow")
+@app.command(rich_help_panel="Prepare")
 def inspect(
     package: Path = typer.Argument(Path("."), help="ClaimTrace package directory."),
     format: str = typer.Option("text", "--format", help=TEXT_JSON_HELP),
+    details: bool = typer.Option(False, "--details", help="Show source operations, resources and the artifact inventory."),
 ) -> None:
-    """Show what ClaimTrace recognized, what stayed raw and what still needs input."""
+    """See the imported materials and the next details to prepare."""
 
     try:
         _validate_choice(format, {"text", "json"}, "format")
@@ -318,6 +395,9 @@ def inspect(
         }
         if format == "json":
             typer.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+            return
+        if not details:
+            _echo_workspace_summary(pkg)
             return
         table = Table(title=f"ClaimTrace package {payload['package_id']}")
         table.add_column("Artifact ID")
@@ -375,6 +455,8 @@ def inspect(
         if open_tasks:
             typer.echo("")
             typer.echo("Next:")
+            typer.echo(f"  claimtrace prepare {_quoted_path(pkg.root)}")
+            typer.echo("Scripted answers:")
             template = _profile_for_next_command(pkg.semantic_layer)
             answers_path = pkg.root / "answers.yml"
             if answers_path.exists():
@@ -393,10 +475,58 @@ def inspect(
         _handle_error(exc)
 
 
+@app.command(rich_help_panel="Review and export")
+def review(
+    package: Path = typer.Argument(Path("."), help="ClaimTrace package directory."),
+    mode: Optional[str] = typer.Option(None, "--mode", help=MODE_HELP + " Defaults to the saved purpose, or draft."),
+    claim: Optional[str] = typer.Option(None, "--claim", help="Review one claim by its ID or 1-based number."),
+    format: str = typer.Option("text", "--format", help="Output format. Choices: text, json, md."),
+    expert: bool = typer.Option(False, "--expert", help="Show record IDs and every open question."),
+) -> None:
+    """Trace claims to their evidence, limitations and next actions."""
+
+    from claimtrace.workflow import review_package
+
+    try:
+        if mode is not None:
+            _validate_choice(mode, {"draft", "internal", "share", "archive"}, "mode")
+        _validate_choice(format, {"text", "json", "md"}, "format")
+        package = _resolve_package_argument(package)
+        state = review_package(package, mode=mode)
+        audit = state["audit"]
+        workflow = state["workflow"]
+        mode = workflow["lifecycle"]["mode"]
+        claim_numbers = {item["id"]: index for index, item in enumerate(audit["claims"], 1)}
+        if claim:
+            if claim.isdecimal() and 1 <= int(claim) <= len(audit["claims"]):
+                claim = audit["claims"][int(claim) - 1]["id"]
+            selected = [item for item in audit["claims"] if item["id"] == claim]
+            if not selected:
+                choices = ", ".join(
+                    f"{index}: {item.get('figure_ref') or item['id']} ({item['id']})"
+                    for index, item in enumerate(audit["claims"], 1)
+                ) or "Add a claim with claimtrace prepare."
+                raise ValueError(f"Unknown claim: {claim}. Available claims: {choices}")
+            summary = {**audit["summary"], "claims": len(selected)}
+            summary.update({status: sum(item["status"] == status for item in selected) for status in ("incomplete", "review", "recorded")})
+            audit = {**audit, "claims": selected, "summary": summary}
+            tasks = [item for item in workflow["tasks"] if item.get("claim_id") in {None, claim}]
+            workflow = {**workflow, "tasks": tasks, "next_action": tasks[0] if tasks else None}
+        payload = {"package": state["root"], "mode": mode, "audit": audit, "workflow": workflow,
+                   "human_review_required": state["report"]["human_review_required"]}
+        if format == "json":
+            typer.echo(json.dumps(payload, indent=2, ensure_ascii=False))
+        else:
+            typer.echo(_review_summary(payload, markdown=format == "md", expert=expert, claim_numbers=claim_numbers))
+    except Exception as exc:
+        _handle_error(exc)
+
+
 @app.command(
-    rich_help_panel="Main workflow",
+    rich_help_panel="Prepare",
     epilog=(
         "Examples:\n\n"
+        '  claimtrace complete "scene-package" --gui\n\n'
         '  claimtrace complete "scene-package" --emit-template\n\n'
         '  claimtrace complete "scene-package" --check-answers "scene-package/answers.yml"\n\n'
         '  claimtrace complete "scene-package" --answers "scene-package/answers.yml"'
@@ -409,21 +539,34 @@ def complete(
     emit_template: bool = typer.Option(False, "--emit-template", help="Print a package-aware answers.yml template."),
     answers: Optional[Path] = typer.Option(None, "--answers", help="answers.yml file to apply."),
     check_answers_file: Optional[Path] = typer.Option(None, "--check-answers", help="Validate answers.yml without applying it."),
-    no_input: bool = typer.Option(False, "--no-input", help="Do not prompt; refresh tasks or apply provided answers only."),
+    no_input: bool = typer.Option(False, "--no-input", help="Refresh tasks or apply provided answers without prompts."),
+    gui: bool = typer.Option(False, "--gui", help="Open the guided workspace for this package."),
 ) -> None:
-    """Create, check or apply answers.yml for figure claims, caveats and visual meanings."""
+    """Add scientific context in the workspace, with prompts or from an answers file."""
 
     try:
         _validate_choice(template, {"auto", *available_templates()}, "template")
         if section is not None:
             _validate_choice(section, SECTION_CHOICES, "section")
-        action_count = sum(bool(action) for action in (emit_template, check_answers_file, answers))
+        action_count = sum(bool(action) for action in (gui, emit_template, check_answers_file, answers))
         if action_count > 1:
             raise ValueError(
-                "Choose only one completion action: --emit-template, --check-answers, or --answers."
+                "Choose only one completion action: --gui, --emit-template, --check-answers, or --answers."
             )
         package = _resolve_package_argument(package)
         pkg = load_package(package)
+        if not any((gui, emit_template, check_answers_file, answers, section, no_input)) and template == "auto":
+            from claimtrace.terminal import prepare_terminal
+
+            prepare_terminal(pkg.root)
+            return
+        if gui:
+            if section is not None or no_input:
+                raise ValueError("Use --gui on its own to open the guided workspace.")
+            from claimtrace.gui.server import serve
+
+            serve(package=pkg.root, port=0, open_browser=True, initial_view="prepare")
+            return
         template = _resolve_auto_template(template, pkg.semantic_layer)
         if emit_template:
             typer.echo(dump_package_answer_template(pkg.semantic_layer, template))
@@ -468,10 +611,10 @@ def complete(
                 raise typer.Exit(1)
             apply_answers(pkg.root, pkg.semantic_layer, data, answer_base=answers.parent)
             pkg.save()
-            _update_completion_task_statuses(pkg.root, completed_answer_sections(data))
+            update_completion_tasks(pkg.root, pkg.semantic_layer, data)
             typer.echo(f"Applied answers: {pkg.root / 'semantic_layer.json'}")
             _echo_remaining_completion_questions(pkg.root)
-            typer.echo(f"Next: claimtrace validate {_quoted_path(pkg.root)} --mode draft --format text")
+            typer.echo(f"Next: claimtrace review {_quoted_path(pkg.root)}")
             return
         tasks = completion_tasks_for_template(template)
         if section:
@@ -495,22 +638,27 @@ def complete(
             answers_path = pkg.root / "answers.yml"
             created = _write_answers_template_if_missing(answers_path, pkg.semantic_layer, template)
             verb = "Created" if created else "Preserved"
+            typer.echo("This scene has source-linked details to review in the guided workspace.", err=True)
+            typer.echo(f"Next: claimtrace complete {_quoted_path(pkg.root)} --gui", err=True)
+            typer.echo(f"{verb} answers file: {_quoted_path(answers_path)}", err=True)
             typer.echo(
-                "This scene contains operation-linked or raw native details that generic prompts cannot update safely.",
-                err=True,
-            )
-            typer.echo(
-                f"{verb} {_quoted_path(answers_path)} with its operation_ids, native_ref_ids and raw_ids intact.",
-                err=True,
-            )
-            typer.echo(f"Edit {_quoted_path(answers_path)} in your text editor, then run:", err=True)
-            typer.echo(
-                f"  claimtrace complete {_quoted_path(pkg.root)} --check-answers {_quoted_path(answers_path)}",
+                f"For scripted edits: claimtrace complete {_quoted_path(pkg.root)} --answers {_quoted_path(answers_path)}",
                 err=True,
             )
             raise typer.Exit(1)
         template_text = dump_package_answer_template(pkg.semantic_layer, template)
-        base_answers = _interactive_answer_base(pkg.root / "answers.yml", template_text)
+        task_sections = {task.section for task in tasks}
+        if (
+            len(pkg.semantic_layer.claims) > 1 and task_sections & {"claim", "evidence", "uncertainty"}
+            or len(pkg.semantic_layer.scenes) > 1 and "scene" in task_sections
+            or len(pkg.semantic_layer.evidence) > 1 and "evidence" in task_sections
+            or len(pkg.semantic_layer.uncertainty) > 1 and "uncertainty" in task_sections
+        ):
+            raise ValueError(
+                "Choose the record to edit in the guided workspace: "
+                f"claimtrace prepare {_quoted_path(pkg.root)}"
+            )
+        base_answers = _interactive_answer_base(template_text, task_sections)
         answers_data = _prompt_for_answers(tasks, pkg.semantic_layer, base_answers)
         draft_path = _save_interactive_answers_draft(pkg.root, answers_data, template_text)
         typer.echo(f"Saved interactive answers draft: {draft_path}")
@@ -518,16 +666,12 @@ def complete(
         if problems:
             for problem in problems:
                 typer.echo(f"Please update answers.yml: {problem}", err=True)
-            typer.echo(f"Edit the saved draft {_quoted_path(draft_path)}; your responses were not discarded.", err=True)
+            typer.echo(f"Edit the saved draft {_quoted_path(draft_path)}; your responses are saved.", err=True)
             _echo_answer_fix_tip(pkg.root, draft_path, template)
             raise typer.Exit(1)
         apply_answers(pkg.root, pkg.semantic_layer, answers_data, answer_base=pkg.root)
         pkg.save()
-        _update_completion_task_statuses(
-            pkg.root,
-            completed_answer_sections(answers_data),
-            None if section is None else {task.id for task in tasks},
-        )
+        update_completion_tasks(pkg.root, pkg.semantic_layer, answers_data, sections=task_sections)
         typer.echo(f"Completed {pkg.root / 'semantic_layer.json'}")
         _echo_remaining_completion_questions(pkg.root)
     except typer.Exit:
@@ -557,7 +701,7 @@ def set_value(
         _handle_error(exc)
 
 
-@app.command("add-artifact", rich_help_panel="Main workflow")
+@app.command("add-artifact", rich_help_panel="Prepare")
 def add_artifact(
     package: Path = typer.Argument(..., help="ClaimTrace package directory."),
     path: Path = typer.Argument(..., help="Artifact path to add."),
@@ -569,7 +713,7 @@ def add_artifact(
         help="Scene ID to link when adding a rendered panel. Recommended for multi-scene packages.",
     ),
 ) -> None:
-    """Add a local file to a package and compute its fixity metadata."""
+    """Attach a figure image, structure, table or other supporting file."""
 
     try:
         if role is not None:
@@ -586,18 +730,15 @@ def add_artifact(
         if artifact.role.value == "render_image" and len(pkg.semantic_layer.scenes) > 1 and scene is None:
             scene_ids = ", ".join(item.id for item in pkg.semantic_layer.scenes)
             typer.echo(
-                "This package has multiple scenes, so ClaimTrace did not guess which scene matches the panel. "
-                f"Add it again with --scene <id>, or set scenes[].render_artifact_ids in answers.yml. Scene IDs: {scene_ids}"
+                "Choose the scene that matches this panel. "
+                f"Use --scene <id> or select it in the workspace. Scene IDs: {scene_ids}"
             )
-        typer.echo(
-            "If this file supports the figure claim, link it under evidence in answers.yml, "
-            "then check and apply that answers file."
-        )
+        typer.echo(f"Next: claimtrace prepare {_quoted_path(pkg.root)}")
     except Exception as exc:
         _handle_error(exc)
 
 
-@app.command(rich_help_panel="Main workflow")
+@app.command(rich_help_panel="Review and export")
 def validate(
     package: Path = typer.Argument(Path("."), help="ClaimTrace package directory."),
     mode: str = typer.Option("draft", "--mode", help=MODE_HELP),
@@ -628,11 +769,11 @@ def validate(
         _handle_error(exc)
 
 
-@app.command(rich_help_panel="Main workflow")
+@app.command(rich_help_panel="Review and export")
 def export(
     package: Path = typer.Argument(Path("."), help="ClaimTrace package directory."),
-    out: Path = typer.Option(..., "--out", help="Output directory or zip path."),
-    mode: str = typer.Option("archive", "--mode", help=MODE_HELP),
+    out: Optional[Path] = typer.Option(None, "--out", help="Output directory or ZIP path. Defaults to a ZIP beside the package."),
+    mode: Optional[str] = typer.Option(None, "--mode", help=MODE_HELP + " Defaults to the saved purpose, or draft."),
     zip: bool = typer.Option(False, "--zip", help="Write a zip archive; .zip --out paths do this automatically."),
     force: bool = typer.Option(False, "--force", help="Replace an existing ClaimTrace output path; refuses unsafe targets."),
     no_input: bool = typer.Option(
@@ -645,10 +786,19 @@ def export(
     """Validate and write a shareable package directory or zip archive."""
 
     try:
-        _validate_choice(mode, {"draft", "internal", "share", "archive"}, "mode")
+        if mode is not None:
+            _validate_choice(mode, {"draft", "internal", "share", "archive"}, "mode")
         package = _resolve_package_argument(package)
-        zip_output = zip or out.suffix == ".zip"
+        if mode is None:
+            mode = load_package(package).semantic_layer.extensions.get("gui_lifecycle", "draft")
+            if mode not in {"draft", "internal", "share", "archive"}:
+                mode = "draft"
+        out = out or _default_zip_path(package)
+        zip_output = zip or out.suffix.lower() == ".zip"
         result = api_export_package(package, out, mode=mode, zip_output=zip_output, force=force)
+        from claimtrace.workflow import LIFECYCLE_LABELS
+
+        typer.echo(f"{LIFECYCLE_LABELS[mode]} checks passed.")
         if zip_output:
             typer.echo(f"Exported zip package: {result}")
             typer.echo(f"Extract {_quoted_path(result)} with your file manager, then validate the extracted folder:")
@@ -663,7 +813,7 @@ def export(
     except ValidationError as exc:
         typer.echo(str(exc), err=True)
         typer.echo(
-            f"Next: claimtrace validate {_quoted_path(package)} --mode {mode} --format text",
+            f"Next: claimtrace review {_quoted_path(package)} --mode {mode}",
             err=True,
         )
         raise typer.Exit(1)
@@ -719,27 +869,150 @@ def migrate(
     package: Path = typer.Argument(..., help="ClaimTrace package directory."),
     target_schema: str = typer.Option("0.1.0", "--target-schema", help="Target CAL schema version."),
 ) -> None:
-    """Experimental: no-op migration surface for schema 0.1.0."""
+    """Experimental: check and record compatibility with schema 0.1.0."""
 
     try:
         package = _resolve_package_argument(package)
         pkg = load_package(package)
         if pkg.semantic_layer.schema_version != target_schema:
             raise SchemaVersionError(
-                f"Only no-op migration to {pkg.semantic_layer.schema_version} is available in v0.1.0."
+                f"This release supports schema {pkg.semantic_layer.schema_version}. Choose that target version."
             )
-        pkg.semantic_layer.add_activity("migrate", "No-op schema migration check.", target_schema=target_schema)
+        pkg.semantic_layer.add_activity("migrate", "Schema version compatibility check.", target_schema=target_schema)
         pkg.save()
-        typer.echo(f"No migration needed for schema {target_schema}.")
+        typer.echo(f"The package already uses schema {target_schema}.")
     except Exception as exc:
         _handle_error(exc)
+
+
+def _echo_materials(semantic: Any) -> None:
+    artifacts = semantic.artifacts
+    native_ids = {aid for scene in semantic.scenes for aid in scene.native_artifact_ids}
+    native_count = sum(item.id in native_ids for item in artifacts)
+    image_count = sum(item.role.value == "render_image" for item in artifacts)
+    supporting = len(artifacts) - native_count - image_count
+    typer.echo("Materials: " + ", ".join((_count_label(native_count, "scene file"), _count_label(image_count, "figure image"), _count_label(supporting, "supporting file"))))
+
+
+def _echo_workspace_summary(pkg: Any) -> None:
+    from claimtrace.workflow import review_package
+
+    state = review_package(pkg.root)
+    typer.echo(pkg.semantic_layer.package.title)
+    _echo_materials(pkg.semantic_layer)
+    typer.echo(f"Claims: {len(pkg.semantic_layer.claims)}")
+    _echo_task_summary(state["workflow"], state["audit"]["claims"])
+    typer.echo("")
+    if state["workflow"]["tasks"]:
+        typer.echo(f"Next: claimtrace prepare {_quoted_path(pkg.root)}")
+    else:
+        typer.echo(f"Next: claimtrace review {_quoted_path(pkg.root)}")
+
+
+def _count_label(count: int, label: str) -> str:
+    return f"{count} {label}{'' if count == 1 else 's'}"
+
+
+def _figure_label(claim: dict[str, Any]) -> str:
+    label = str(claim.get("figure_ref") or "").strip()
+    return label if label.lower() not in {"", "unknown", "todo", "tbd"} else "Draft figure"
+
+
+def _task_title(task: dict[str, Any], claims: list[dict[str, Any]], *, expert: bool = False) -> str:
+    if len(claims) < 2:
+        return task["title"]
+    owner = next((item for item in claims if item["id"] == task.get("claim_id")), None)
+    scope = _figure_label(owner) if owner else "Package"
+    if expert and owner:
+        scope += f" · {owner['id']}"
+    return f"{scope}: {task['title']}"
+
+
+def _echo_task_summary(workflow: dict[str, Any], claims: list[dict[str, Any]]) -> None:
+    tasks = workflow["tasks"]
+    if tasks:
+        typer.echo("To prepare:")
+        for task in tasks[:3]:
+            typer.echo(f"  - {_task_title(task, claims)}")
+        if len(tasks) > 3:
+            typer.echo(f"  + {len(tasks) - 3} more with claimtrace review --expert")
+    else:
+        typer.echo("Preparation details recorded.")
+
+
+def _review_summary(
+    payload: dict[str, Any], *, markdown: bool = False, expert: bool = False,
+    claim_numbers: dict[str, int] | None = None,
+) -> str:
+    audit = payload["audit"]
+    workflow = payload["workflow"]
+    lifecycle = workflow["lifecycle"]
+    mode = lifecycle["label"]
+    readiness = "Ready" if lifecycle["ready"] else f"{_count_label(lifecycle['blocking_count'], 'detail')} to resolve"
+    lines = ["# ClaimTrace review" if markdown else "ClaimTrace review", "", f"{mode} package checks: {readiness}"]
+    notes = payload.get("human_review_required", payload.get("report", {}).get("human_review_required", []))
+    if notes:
+        lines.append(_author_review_summary(notes))
+    statuses = {"missing": "Add details", "incomplete": "Add details", "review": "Review needed", "recorded": "Recorded", "not_applicable": "Optional"}
+    for index, claim in enumerate(audit["claims"], 1):
+        number = (claim_numbers or {}).get(claim["id"], index)
+        heading = f"{number}. {_figure_label(claim)}"
+        if expert:
+            heading += f" · {claim['id']}"
+        lines.extend(["", f"## {heading}" if markdown else heading, claim["headline"]])
+        for stage in claim["stages"]:
+            label = stage["label"]
+            summary = stage["summary"]
+            if not expert:
+                summary = summary.replace(f"Claim {claim['id']}", "This claim")
+                summary = summary.replace(f"claim {claim['id']}", "this claim")
+                summary = summary.replace(claim["id"], "this claim")
+            status = statuses.get(stage["status"], stage["status"].replace("_", " ").capitalize())
+            lines.append(f"- **{label}** · {status}: {summary}" if markdown else f"  {label} · {status}: {summary}")
+        if expert:
+            for key, label in (("scene_ids", "Scenes"), ("evidence_ids", "Evidence records"), ("uncertainty_ids", "Limitations"), ("artifact_ids", "Files")):
+                if claim.get(key):
+                    lines.append(f"  {label}: {', '.join(claim[key])}")
+    pending = [t for t in workflow["tasks"] if t["action"] == "review-proposal"]
+    if not audit["claims"] and not pending:
+        lines.extend(["", "Add the statement this figure should communicate."])
+    tasks = workflow["tasks"]
+    if tasks:
+        lines.extend(["", "Next actions:", ""])
+        for index, task in enumerate(tasks if expert else tasks[:3], 1):
+            lines.append(f"{index}. {_task_title(task, audit['claims'], expert=expert)}")
+        if len(tasks) > 3 and not expert:
+            lines.append(f"+ {len(tasks) - 3} more with --expert.")
+    commands = []
+    if notes:
+        commands.append(("Review item details", f"claimtrace validate {_quoted_path(payload['package'])} --mode {payload['mode']} --format json"))
+    if pending:
+        commands.append(("Read suggestions", f"claimtrace agent proposals {_quoted_path(payload['package'])} --status pending"))
+        commands.append(("Review in GUI", f"claimtrace gui {_quoted_path(payload['package'])}"))
+    if tasks or not lifecycle["ready"]:
+        commands.append(("Prepare", f"claimtrace prepare {_quoted_path(payload['package'])}"))
+    if lifecycle["ready"]:
+        commands.append(("Export", f"claimtrace export {_quoted_path(payload['package'])} --mode {payload['mode']}"))
+    for label, command in commands:
+        lines.extend(["", f"{label}: `{command}`" if markdown else f"{label}: {command}"])
+    return "\n".join(lines)
 
 
 def _prompt_for_answers(tasks, semantic: Any, base_answers: dict[str, Any]) -> dict[str, Any]:
     answers = json.loads(json.dumps(base_answers))
     for task in tasks:
         prompt = f"{task.question} ({task.examples[0] if task.examples else 'unknown'})"
-        answer = typer.prompt(prompt, default="unknown")
+        record = answers.get(task.section, {})
+        if isinstance(record, list):
+            record = record[0] if record else {}
+        key = {
+            "claim": "claim_text", "evidence": "result_summary", "scene": "notes",
+            "uncertainty": "statement", "reuse": "license",
+        }.get(task.section)
+        current = str(record.get(key) or "unknown") if isinstance(record, dict) and key else "unknown"
+        if current.lower().startswith(("todo", "tbd")):
+            current = "unknown"
+        answer = typer.prompt(prompt, default=current)
         if task.section == "claim":
             claim = answers.setdefault("claim", {})
             if not isinstance(claim, dict):
@@ -747,8 +1020,13 @@ def _prompt_for_answers(tasks, semantic: Any, base_answers: dict[str, Any]) -> d
                 answers["claim"] = claim
             claim["claim_text"] = answer
             claim.setdefault("claim_type", _profile_claim_type(semantic))
-            claim["figure_ref"] = typer.prompt("Figure or panel label", default="Figure 1A")
+            figure_ref = str(claim.get("figure_ref") or "")
+            if figure_ref.lower() in {"", "unknown"} or figure_ref.lower().startswith(("todo", "tbd")):
+                figure_ref = "Figure 1A"
+            claim["figure_ref"] = typer.prompt("Figure or panel label", default=figure_ref)
             claim.setdefault("scope", "panel")
+            claim.update(review_status="confirmed", reviewer="cli", source_type="user_asserted")
+            claim.pop("reviewed_at", None)
         elif task.section == "entities":
             if answer.strip().lower() not in {"", "unknown", "not_applicable"}:
                 entities = answers.setdefault("entities", [])
@@ -783,6 +1061,8 @@ def _prompt_for_answers(tasks, semantic: Any, base_answers: dict[str, Any]) -> d
             method = str(evidence_item.get("method_name", "")).strip().lower()
             if not method or method in {"unknown", "todo", "tbd"} or method.startswith("todo:"):
                 evidence_item["method_name"] = "Author-provided visual review"
+            evidence_item.update(review_status="confirmed", reviewer="cli")
+            evidence_item.pop("reviewed_at", None)
         elif task.section == "scene":
             scene = answers.setdefault("scene", {})
             if not isinstance(scene, dict):
@@ -797,6 +1077,8 @@ def _prompt_for_answers(tasks, semantic: Any, base_answers: dict[str, Any]) -> d
                 uncertainty = {}
                 answers["uncertainty"] = uncertainty
             uncertainty["statement"] = answer
+            uncertainty.update(review_status="confirmed", reviewer="cli")
+            uncertainty.pop("reviewed_at", None)
         elif task.section == "reuse":
             reuse = answers.setdefault("reuse", {})
             if not isinstance(reuse, dict):
@@ -847,13 +1129,13 @@ def _validated_native_inputs(
     native_paths = list(native or [])
     if scene is not None and native_paths:
         raise ValueError(
-            "The positional scene and --native cannot be used together. "
+            "Choose one scene-input form. "
             "Use `claimtrace init <scene-file>` for one scene, or repeat --native for multiple scenes."
         )
     if scene is not None:
         native_paths = [scene]
     if blank and (native_paths or image or artifact):
-        raise ValueError("--blank cannot be combined with a scene, --native, --image or --artifact.")
+        raise ValueError("Use --blank for an empty package, or provide files to start from existing material.")
     for path in native_paths:
         suffix = path.suffix.lower()
         if suffix not in NATIVE_SCENE_SUFFIXES:
@@ -917,20 +1199,28 @@ def _write_answers_template_if_missing(path: Path, semantic: Any, template: str)
     return True
 
 
-def _interactive_answer_base(path: Path, template_text: str) -> dict[str, Any]:
-    if path.exists() and not path.is_symlink():
-        try:
-            data = load_answers(path)
-            return json.loads(json.dumps(data))
-        except (OSError, ValueError) as exc:
-            typer.echo(
-                f"Could not reuse {_quoted_path(path)} ({exc}); it will be preserved and a separate draft will be written.",
-                err=True,
-            )
+def _interactive_answer_base(template_text: str, sections: set[str]) -> dict[str, Any]:
+    """Use current records and apply only the sections the prompts ask about."""
     data = _simple_yaml.loads(template_text)
     if not isinstance(data, dict):  # pragma: no cover - generated templates are mappings
         raise ValueError("Generated answers template was not a mapping.")
-    return data
+    if len(data.get("claims", [])) == 1:
+        data["claim"] = data.pop("claims")[0]
+    if len(data.get("scenes", [])) == 1:
+        data["scene"] = data.pop("scenes")[0]
+    if isinstance(data.get("uncertainty"), list) and len(data["uncertainty"]) == 1:
+        data["uncertainty"] = data["uncertainty"][0]
+    scoped = {key: value for key, value in data.items() if key in sections}
+    if "claim" not in scoped:
+        # Keep the answer-file envelope while leaving other scientific records
+        # unchanged. New support records still need their single claim anchor.
+        if sections & {"evidence", "uncertainty"} and data.get("claim", {}).get("id"):
+            scoped["claim"] = {"id": data["claim"]["id"]}
+        else:
+            scoped["claims"] = []
+    scoped.setdefault("evidence", [])
+    scoped.setdefault("reuse", {})
+    return scoped
 
 
 def _save_interactive_answers_draft(root: Path, answers: dict[str, Any], original_template: str) -> Path:
@@ -941,7 +1231,7 @@ def _save_interactive_answers_draft(root: Path, answers: dict[str, Any], origina
         and not preferred.is_symlink()
         and preferred.read_text(encoding="utf-8") == original_template
     )
-    if not preferred.exists() or can_replace_generated:
+    if (not preferred.exists() and not preferred.is_symlink()) or can_replace_generated:
         preferred.write_text(content, encoding="utf-8", newline="\n")
         return preferred
     draft = _next_available_answers_path(root / "answers.draft.yml")
@@ -959,18 +1249,6 @@ def _next_available_answers_path(preferred: Path) -> Path:
         if not candidate.exists() and not candidate.is_symlink():
             return candidate
         index += 1
-
-
-def _update_completion_task_statuses(
-    root: Path,
-    completed_sections: set[str],
-    task_ids: set[str] | None = None,
-) -> None:
-    tasks = read_completion_tasks(root)
-    for task in tasks:
-        if (task_ids is None or task.id in task_ids) and task.status != "waived":
-            task.status = "answered" if task.section in completed_sections else "open"
-    write_completion_tasks(root, tasks)
 
 
 def _echo_remaining_completion_questions(root: Path) -> None:
@@ -1014,7 +1292,7 @@ def _operation_summary_lines(semantic: Any, limit: int = 6) -> list[str]:
         line = f"{location}: {annotation}" if location else annotation
         candidate = getattr(operation, "candidate_meaning", None)
         if candidate:
-            line += f" Tool suggestion, not confirmed: {candidate}"
+            line += f" Suggested meaning awaiting review: {candidate}"
         lines.append(line)
     if len(operations) > limit:
         lines.append(f"... {len(operations) - limit} more operation(s). Use --format json for full details.")
@@ -1116,7 +1394,7 @@ def _resource_summary_lines(semantic: Any, limit: int = 6) -> list[str]:
             else "not attached"
         )
         if resource.uri_kind == "remote":
-            attached = "remote recorded, not fetched"
+            attached = "URL recorded; download pending"
         elif resource.uri_kind == "archive_member" and resource.fixity_status == "available":
             attached = "embedded in archive; checksum recorded"
         elif resource.uri_kind == "data" and resource.fixity_status == "available":
@@ -1162,8 +1440,8 @@ def _import_warning_lines(semantic: Any, limit: int = 5) -> list[str]:
 
 def _friendly_raw_reason(reason: str) -> str:
     labels = {
-        "dynamic_command_boundary": "dynamic command preserved; not executed",
-        "executable_resource_boundary": "executable resource reference preserved; not opened",
+        "dynamic_command_boundary": "dynamic command preserved; execution requires the original viewer",
+        "executable_resource_boundary": "executable resource reference preserved for review",
         "unsupported_command": "unsupported command preserved for review",
         "ambiguous_abbreviation": "ambiguous command abbreviation",
         "unknown_mvs_node": "unknown MolViewSpec node preserved for review",
@@ -1208,7 +1486,7 @@ def _resource_hint_lines(semantic: Any, package: Path, limit: int = 6) -> list[s
         location_text = f" ({location})" if location else ""
         if resource.uri_kind in {"relative", "local"} and _is_safe_relative_hint(resource.uri):
             role = infer_role(Path(str(resource.uri))).value
-            lines.append(f"Referenced local file not attached{location_text}: {resource.uri}")
+            lines.append(f"Referenced file needs an attachment{location_text}: {resource.uri}")
             lines.append(
                 "  Add the actual local file with: claimtrace add-artifact "
                 f"{_quoted_path(package)} {_quoted_path(_example_local_path(resource.uri))} --role {role}"
@@ -1217,10 +1495,10 @@ def _resource_hint_lines(semantic: Any, package: Path, limit: int = 6) -> list[s
                 "  Run that command from the folder containing the file, or replace the filename with its real full path."
             )
         elif resource.uri_kind == "remote":
-            lines.append(f"Remote resource recorded, not fetched{location_text}: {resource_uri_summary(resource.uri)}")
+            lines.append(f"Remote resource URL recorded; download pending{location_text}: {resource_uri_summary(resource.uri)}")
         elif resource.uri_kind == "missing_archive_member":
             lines.append(f"Referenced file is missing from the MVSX archive{location_text}: {resource_uri_summary(resource.uri)}")
-            lines.append("  Rebuild the .mvsx with that file at the referenced archive path; an outside sibling file will not repair the archive.")
+            lines.append("  Rebuild the .mvsx with that file inside the archive at its referenced path.")
     return lines
 
 
@@ -1321,7 +1599,7 @@ def _report_markdown(report: dict[str, Any]) -> str:
                 f"- **{item['status']} {item['severity']} {item['rule_id']}**: {item['message']}"
             )
     else:
-        lines.append("- No required updates found.")
+        lines.append("- Required checks passed.")
     waivers = report.get("waiver_list", [])
     if waivers:
         lines.extend(["", "## Waiver Records", ""])
@@ -1347,17 +1625,15 @@ def _report_text(report: dict[str, Any], package: Path | str = "<package>") -> s
         zip_path = _default_zip_path(Path(package))
         lines = [
             f"pass: {mode} check is ready.",
-            "No required updates found.",
-            "The package passed ClaimTrace's configured blocking checks for traceability, packaging and paths.",
-            "Tool-suggested visual meanings remain suggestions unless the author confirms them in answers.yml.",
+            "Required package checks passed. The files are ready to review.",
             _validation_summary_line(report),
-            f"Next: claimtrace export {_quoted_path(package)} --mode {mode} --out {_quoted_path(zip_path)}",
+            f"Create a handoff ZIP when needed: claimtrace export {_quoted_path(package)} --mode {mode} --out {_quoted_path(zip_path)}",
         ]
         lines.extend(_waiver_text_lines(report))
         return "\n".join(lines)
     if required:
         lines = [
-            f"{mode} check is not ready yet: {len(required)} required update(s), {len(recommended)} recommended update(s).",
+            f"{mode} check needs attention: {len(required)} required update(s), {len(recommended)} recommended update(s).",
             "This check covers package context, traceability, paths and required confirmations.",
             "",
             f"Required before {mode}:",
@@ -1368,7 +1644,7 @@ def _report_text(report: dict[str, Any], package: Path | str = "<package>") -> s
             lines.append(f"- {len(required) - 8} more required update(s). Use --format json for the full report.")
     else:
         lines = [
-            f"{status}: no blocking updates for {mode}; {len(recommended)} recommended update(s).",
+            f"{status}: ready for {mode}; {len(recommended)} recommended update(s).",
             "This check covers package context, traceability, paths and required confirmations.",
         ]
     if recommended:
@@ -1381,11 +1657,11 @@ def _report_text(report: dict[str, Any], package: Path | str = "<package>") -> s
     if required:
         lines.append("Start with the Required list above.")
     elif recommended:
-        lines.append("No blocking updates remain; review the Recommended list if this package needs a fuller handoff.")
+        lines.append("Export is ready for this purpose. Review the recommended items for a fuller handoff.")
     if _has_context_finding(findings):
         lines.extend(
             [
-                "You usually do not need to edit semantic_layer.json directly.",
+                "Use Prepare or an answers file to update the claim record.",
                 f"For claim/context updates, edit {_quoted_path(_answers_path_for(Path(package)))}.",
                 "Then: claimtrace complete "
                 f"{_quoted_path(package)} --check-answers {_quoted_path(_answers_path_for(Path(package)))}",
@@ -1551,12 +1827,26 @@ def _profile_for_next_command(semantic: Any) -> str:
 
 
 def _validation_summary_line(report: dict[str, Any]) -> str:
-    review_notes = len(report.get("human_review_required", []))
-    return (
+    notes = report.get("human_review_required", [])
+    summary = (
         f"Summary: {len(report.get('claim_traceability_matrix', []))} claim(s), "
-        f"{len(report.get('artifact_fixity', []))} artifact(s), "
-        f"{review_notes} non-blocking author-review note(s)."
+        f"{len(report.get('artifact_fixity', []))} artifact(s)."
     )
+    if notes:
+        summary += " " + _author_review_summary(notes)
+        summary += " Read human_review_required with --format json."
+    return summary
+
+
+def _author_review_summary(notes: list[dict[str, Any]]) -> str:
+    labels = {"scenes": "scene details", "selections": "selected regions",
+              "native_references": "scene references", "entities": "molecular identities"}
+    categories = sorted({
+        labels.get(root, root.replace("_", " "))
+        for item in notes if (root := item.get("json_pointer", "").strip("/").split("/")[0])
+    })
+    summary = f"Additional author review: {_count_label(len(notes), 'item')}"
+    return summary + (f" ({', '.join(categories)})" if categories else "") + "."
 
 
 def _has_context_finding(findings: list[dict[str, Any]]) -> bool:
@@ -1573,7 +1863,7 @@ def _answers_path_for(package: Path) -> Path:
 def _default_zip_path(package: Path) -> Path:
     if package == Path("."):
         package = _resolve_package_argument(package)
-    return package.with_suffix(".zip")
+    return package.resolve().with_suffix(".zip")
 
 
 def _validate_choice(value: str, choices: set[str], label: str) -> None:
@@ -1621,7 +1911,7 @@ def _validate_report_output_path(package: Path, out: Path) -> None:
 
 def _handle_error(exc: Exception) -> None:
     if isinstance(exc, SecurityError):
-        typer.echo(f"Cannot continue safely: {exc}", err=True)
+        typer.echo(f"Check the package path or file: {exc}", err=True)
         raise typer.Exit(2)
     if isinstance(exc, SchemaVersionError):
         typer.echo(f"This package uses an unsupported schema version: {exc}", err=True)
@@ -1633,7 +1923,7 @@ def _handle_error(exc: Exception) -> None:
         package_path = Path(package)
         is_scene_file = package_path.suffix.lower() in NATIVE_SCENE_SUFFIXES and package_path.is_file()
         if is_scene_file:
-            typer.echo("That path is a supported scene file, not a package directory.", err=True)
+            typer.echo("Import this scene to create a ClaimTrace package folder.", err=True)
         suggested_scene = package if is_scene_file else "<scene-file>"
         suggested_out = "scene-package" if package in {".", "<package>"} or is_scene_file else package
         typer.echo(
@@ -1644,7 +1934,7 @@ def _handle_error(exc: Exception) -> None:
         )
         raise typer.Exit(1)
     if isinstance(exc, (ValidationError, ClaimTraceError, ValueError, PackageError)):
-        typer.echo(f"Could not complete the command: {exc}", err=True)
+        typer.echo(f"Action needed: {exc}", err=True)
         raise typer.Exit(1)
     if isinstance(exc, FileNotFoundError):
         typer.echo(

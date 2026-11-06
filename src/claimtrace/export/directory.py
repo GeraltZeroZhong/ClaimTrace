@@ -39,7 +39,7 @@ def export_package(
         prefix=f".{output.name}.claimtrace-export-",
         dir=output.parent,
     ) as tmp:
-        container = Path(tmp)
+        container = Path(tmp).resolve()
         staging = container / "package"
         _build_export_directory(source_root, staging, mode=mode)
         staged_output = staging

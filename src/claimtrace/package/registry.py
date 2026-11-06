@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import gzip
 import mimetypes
 import posixpath
 from pathlib import Path
@@ -56,7 +57,8 @@ def infer_role(path: Path, requested: str | None = None) -> ArtifactRole:
         return ArtifactRole.molviewspec
     if suffix in {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".gif", ".webp", ".svg"}:
         return ArtifactRole.render_image
-    if suffix in {".pdb", ".cif", ".mmcif"} and _looks_like_coordinate_structure(path):
+    coordinate_suffix = Path(path.stem).suffix.lower() if suffix == ".gz" else suffix
+    if coordinate_suffix in {".pdb", ".pdbqt", ".cif", ".mmcif", ".sdf", ".mol"} and _looks_like_coordinate_structure(path):
         return ArtifactRole.structure
     if suffix in {".map", ".mrc", ".ccp4"}:
         return ArtifactRole.map
@@ -72,11 +74,14 @@ def infer_role(path: Path, requested: str | None = None) -> ArtifactRole:
 def _looks_like_coordinate_structure(path: Path) -> bool:
     suffix = path.suffix.lower()
     try:
-        with path.open("rb") as handle:
+        opener = gzip.open if suffix == ".gz" else open
+        if suffix == ".gz":
+            suffix = Path(path.stem).suffix.lower()
+        with opener(path, "rb") as handle:
             sample = handle.read(MAX_STRUCTURE_HEADER_SCAN_BYTES)
-    except OSError:
+    except (OSError, EOFError):
         return False
-    if suffix == ".pdb":
+    if suffix in {".pdb", ".pdbqt"}:
         return sample.startswith((b"ATOM  ", b"HETATM")) or b"\nATOM  " in sample or b"\nHETATM" in sample
     if suffix in {".cif", ".mmcif"}:
         lowered = sample.lower()
@@ -93,6 +98,23 @@ def _looks_like_coordinate_structure(path: Path) -> bool:
             )
         )
         return has_cartesian_coordinates or has_fractional_coordinates
+    if suffix in {".sdf", ".mol"}:
+        lines = sample.splitlines()
+        try:
+            if len(lines) > 4 and b"V2000" in lines[3] and int(lines[3][:3]) > 0:
+                atom = lines[4]
+                for start in (0, 10, 20):
+                    float(atom[start:start + 10])
+                return bool(atom[31:34].strip())
+            if b"M  V30 BEGIN ATOM" in sample:
+                begin = next(i for i, line in enumerate(lines) if b"M  V30 BEGIN ATOM" in line)
+                atom = lines[begin + 1].split()
+                int(atom[2])
+                for value in atom[4:7]:
+                    float(value)
+                return len(atom) >= 8
+        except (ValueError, IndexError):
+            return False
     return False
 
 
@@ -139,14 +161,17 @@ def replay_destination_for(semantic: SemanticLayer, source: Path) -> str | None:
     script's package directory keeps `load model.cif` replayable.
     """
 
-    source_text = source.as_posix().replace("\\", "/")
+    source_text = posixpath.normpath(source.as_posix().replace("\\", "/"))
+    matches: dict[str, int] = {}
     for resource in semantic.resource_references:
         if resource.uri_kind not in {"relative", "local"} or not resource.artifact_id:
             continue
         uri = str(resource.uri).strip().replace("\\", "/")
         if not uri or uri.startswith(("/", "~")) or ":" in uri.split("/", 1)[0]:
             continue
-        if source.name != Path(uri).name and not source_text.endswith("/" + uri):
+        uri = posixpath.normpath(uri)
+        exact_relative = source_text == uri or source_text.endswith("/" + uri)
+        if source.name != Path(uri).name and not exact_relative:
             continue
         native = next(
             (artifact for artifact in semantic.artifacts if artifact.id == resource.artifact_id),
@@ -162,8 +187,20 @@ def replay_destination_for(semantic: SemanticLayer, source: Path) -> str | None:
             continue
         if candidate.startswith("../") or candidate == "..":
             continue
-        return candidate
-    return None
+        # Prefer the most specific relative path. A basename alone is useful
+        # only when it identifies one replay destination across all scripts.
+        specificity = len(Path(uri).parts) if exact_relative else 0
+        matches[candidate] = max(matches.get(candidate, -1), specificity)
+    if not matches:
+        return None
+    best = max(matches.values())
+    candidates = sorted(path for path, score in matches.items() if score == best)
+    if len(candidates) != 1:
+        raise PackageError(
+            f"File {source.name!r} matches several native resource paths: "
+            f"{', '.join(candidates)}. Use a source path ending with the intended resource path."
+        )
+    return candidates[0]
 
 
 def register_local_artifact(
@@ -175,7 +212,13 @@ def register_local_artifact(
     copy: bool = True,
     detached: bool = False,
     relative_destination: str | None = None,
+    dry_run: bool = False,
 ) -> Artifact:
+    """Register metadata; ``dry_run`` checks a planned attachment without copying.
+
+    Callers preparing an edit use a private semantic-layer copy with this option.
+    Paths, content conflicts and IDs follow the same rules as real registration.
+    """
     source = Path(source)
     validate_artifact_source(source)
     requested_role = ArtifactRole(role) if role is not None else infer_role(source)
@@ -236,7 +279,7 @@ def register_local_artifact(
                     )
                 target_path = target
             else:
-                target_path = copy_into_package(root, source, relative_path)
+                target_path = source if dry_run else copy_into_package(root, source, relative_path)
 
             if target_path.is_dir():
                 digest = sha256_directory(target_path)
@@ -281,7 +324,7 @@ def register_local_artifact(
             reuse_existing_target = True
     if copy and not detached:
         if not reuse_existing_target:
-            target_path = copy_into_package(root, source, relative_path)
+            target_path = source if dry_run else copy_into_package(root, source, relative_path)
         if target_path.is_dir():
             digest = sha256_directory(target_path)
             size = directory_size(target_path)

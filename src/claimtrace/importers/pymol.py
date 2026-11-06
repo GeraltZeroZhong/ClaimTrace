@@ -139,8 +139,13 @@ class PyMOLImporter:
                 f"PyMOL scene is not valid UTF-8 near byte {exc.start}: {path}. "
                 "Save the file as UTF-8 and try again."
             ) from exc
-        for line_no, raw_line in _logical_lines(lines):
-            for ordinal, (stripped, column) in enumerate(_split_pml_statements(raw_line)):
+        for raw_line, source_segments in _logical_lines(lines):
+            for ordinal, (stripped, logical_column) in enumerate(_split_pml_statements(raw_line)):
+                offset = logical_column - 1
+                start, line_no, start_column = next(
+                    segment for segment in reversed(source_segments) if segment[0] <= offset
+                )
+                column = start_column + offset - start
                 command, args = _split_command(stripped)
                 lower = command.lower()
                 if _is_dynamic(stripped, lower):
@@ -165,7 +170,7 @@ class PyMOLImporter:
                         {"raw": stripped},
                         "raw_unsupported",
                         "low",
-                        "Dynamic or executable PyMOL content is recorded but not interpreted.",
+                        "Dynamic or executable PyMOL content is preserved for review in PyMOL.",
                     )
                     result.facts.append(fact)
                     result.tasks.append(
@@ -177,7 +182,8 @@ class PyMOLImporter:
                     )
                     continue
                 if lower not in SUPPORTED:
-                    scene.parse_confidence = ConfidenceValue.medium
+                    if scene.parse_confidence != ConfidenceValue.low:
+                        scene.parse_confidence = ConfidenceValue.medium
                     _record_raw_observation(
                         semantic,
                         artifact_id,
@@ -204,7 +210,8 @@ class PyMOLImporter:
                     )
                     continue
                 if lower == "set_view" and not _valid_set_view(stripped):
-                    scene.parse_confidence = ConfidenceValue.medium
+                    if scene.parse_confidence != ConfidenceValue.low:
+                        scene.parse_confidence = ConfidenceValue.medium
                     _record_raw_observation(
                         semantic,
                         artifact_id,
@@ -346,27 +353,34 @@ def _comma_words(text: str) -> list[str]:
 
 
 def _logical_lines(lines: list[str]):
+    """Join continued lines while retaining physical offsets for each segment."""
+
     buffer = ""
-    start_line = 1
+    source_segments: list[tuple[int, int, int]] = []
     paren_balance = 0
     for line_no, raw_line in enumerate(lines, start=1):
-        stripped = _strip_inline_comment(raw_line).strip()
+        uncommented = _strip_inline_comment(raw_line)
+        stripped = uncommented.strip()
         if not stripped and not buffer:
             continue
-        if not buffer:
-            start_line = line_no
         continuation = _has_unquoted_trailing_backslash(stripped)
         part = stripped[:-1].strip() if continuation else stripped
-        buffer = f"{buffer} {part}".strip() if buffer else part
+        if part:
+            if buffer:
+                buffer += " "
+            column = len(uncommented) - len(uncommented.lstrip()) + 1
+            source_segments.append((len(buffer), line_no, column))
+            buffer += part
         paren_balance += _bracket_delta(part)
         if continuation or (buffer.lower().startswith("set_view") and paren_balance > 0):
             continue
         if buffer:
-            yield start_line, buffer
+            yield buffer, source_segments
         buffer = ""
+        source_segments = []
         paren_balance = 0
     if buffer:
-        yield start_line, buffer
+        yield buffer, source_segments
 
 
 def _split_pml_statements(line: str) -> list[tuple[str, int]]:
@@ -581,7 +595,12 @@ def _score(level: str) -> float:
 def _selection_id(artifact_id: str, name: str) -> str:
     clean = "".join(ch.lower() if ch.isalnum() else "-" for ch in name).strip("-") or "selection"
     namespace = uuid5(NAMESPACE_URL, artifact_id).hex[:10]
-    return f"selection:pymol:{namespace}:{clean[:48]}"
+    label = clean[:48]
+    # Keep existing IDs for short lowercase names, while retaining identity
+    # when case folding, normalization or truncation would merge names.
+    if label != name.replace("_", "-"):
+        label += f"~{uuid5(NAMESPACE_URL, name).hex[:12]}"
+    return f"selection:pymol:{namespace}:{label}"
 
 
 def _defined_selection_id(semantic: SemanticLayer, artifact_id: str, target: str) -> str | None:
@@ -622,7 +641,8 @@ def _normalize_pymol_command(
         selector = args[1].strip() if len(args) > 1 and args[1].strip() else "unknown"
         name_issue = _selection_name_issue(name)
         if name_issue:
-            scene.parse_confidence = ConfidenceValue.medium
+            if scene.parse_confidence != ConfidenceValue.low:
+                scene.parse_confidence = ConfidenceValue.medium
             _record_raw_observation(
                 semantic,
                 artifact_id,
@@ -837,7 +857,7 @@ def _normalize_pymol_command(
             generated_by="PyMOL distance command (native observation only)",
             method_name="PyMOL distance command",
             parameters={"native_command": native_command, **details},
-            result_summary="Distance/measurement intent observed in PyMOL script; not classified as a hydrogen bond or contact.",
+            result_summary="The PyMOL script requests a distance measurement. An interaction assignment needs its own criteria and result.",
             limitations=[
                 "runtime_unverified: the script was parsed statically and no distance value was observed."
             ],
@@ -1291,7 +1311,7 @@ def _task(section: str, question: str, pointer: str) -> CompletionTask:
         section=section,
         question=question,
         target_json_pointer=pointer,
-        field_use="Adds author context that native viewer commands do not contain.",
+        field_use="Records the author’s statement, evidence and interpretation of the figure.",
         examples=["unknown", "not_applicable: because ...", "short author note"],
         accepted_values=["unknown", "not_applicable", "short author-provided value"],
     )

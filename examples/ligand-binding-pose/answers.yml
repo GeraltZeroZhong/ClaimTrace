@@ -4,9 +4,9 @@ package:
   license: CC-BY-4.0
   profile: ligand-binding-pose
 claim:
-  claim_text: Ligand LIG occupies the example pocket near residue ALA10.
+  claim_text: Synthetic ligand atom LIG:O lies 2.8 angstrom from A:ALA10:CA.
   claim_type: ligand_binding_pose
-  figure_ref: Figure 2A
+  figure_ref: Example panel B
   scope: panel
   review_status: confirmed
 artifacts:
@@ -29,12 +29,12 @@ entities:
     review_status: confirmed
 evidence:
   - evidence_kind: contact_table
-    method_name: Synthetic contact table
+    method_name: Calculate the Euclidean distance between two synthetic coordinates
     thresholds:
       distance: 4.0
     units:
       distance: angstrom
-    result_summary: The table lists one ligand-pocket distance under the declared threshold.
+    result_summary: The atoms at x = 0.0 and x = 2.8 angstrom are 2.8 angstrom apart, within the declared 4.0 angstrom threshold.
     source_artifact_roles:
       - contact_table
       - structure
@@ -48,7 +48,7 @@ scene:
   notes: Automatically observed display and distance commands are native observations; the ligand color meaning is author-confirmed below.
 uncertainty:
   category: alternative_pose
-  statement: This synthetic fixture does not evaluate alternative ligand poses or solvent context.
+  statement: This two-atom synthetic example describes proximity. Alternative poses and solvent context require additional evidence.
   review_status: confirmed
 reuse:
   license: CC-BY-4.0

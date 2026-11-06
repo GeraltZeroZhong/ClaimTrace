@@ -4,9 +4,9 @@ package:
   license: CC-BY-4.0
   profile: simple-structure-view
 claim:
-  claim_text: Figure 1A presents a simple cartoon view of the example model.
+  claim_text: The example PyMOL scene requests a cyan cartoon view of a synthetic model.
   claim_type: simple_structure_view
-  figure_ref: Figure 1A
+  figure_ref: Example panel A
   scope: panel
   review_status: confirmed
 artifacts:
@@ -14,8 +14,8 @@ artifacts:
     role: structure
 evidence:
   - evidence_kind: manual_rationale
-    method_name: Author visual review
-    result_summary: The native PyMOL script, rendered image and mmCIF model are provided for review.
+    method_name: Inspect the synthetic scene and coordinate rows
+    result_summary: The PyMOL script requests a cyan cartoon for three toy atoms in model.cif. A labeled PNG card exercises image attachment.
     source_artifact_roles:
       - native_script
       - render_image
@@ -24,10 +24,10 @@ evidence:
 scene:
   color_meanings: {}
   label_meanings: {}
-  notes: No scientific category is implied by the cyan coloring in this example.
+  notes: Cyan provides visual contrast for the synthetic model.
 uncertainty:
   category: scope
-  statement: This example asserts only that a structure view is presented; it does not assert mechanism or binding.
+  statement: The three-atom model and placeholder image exercise package handling. Viewer replay and biological interpretation require separate evidence.
   review_status: confirmed
 software:
   - name: PyMOL

@@ -1,5 +1,7 @@
 import json
+import os
 import zipfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -80,6 +82,54 @@ def test_directory_and_zip_exports_preserve_empty_directories(tmp_path: Path) ->
         names = set(archive.namelist())
     assert "data/kept-empty/" in names
     assert "data/kept-empty/nested/" in names
+
+
+def test_zip_export_accepts_source_timestamp_before_1980(tmp_path: Path) -> None:
+    source = tmp_path / "scene.pml"
+    source.write_text("show cartoon\n", encoding="utf-8")
+    os.utime(source, (0, 0))
+    package = init_package(native=source, out=tmp_path / "package")
+
+    output = package.export(tmp_path / "review.zip", mode="draft")
+
+    with zipfile.ZipFile(output) as archive:
+        assert archive.read("native/scene.pml") == source.read_bytes()
+        assert archive.getinfo("native/scene.pml").date_time[0] == 1980
+        assert json.loads(archive.read("validation_report.json"))["overall_status"] == "pass"
+
+
+@pytest.mark.parametrize("zip_output", [False, True])
+def test_relative_export_handles_python310_temporary_directory_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, zip_output: bool,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    package = init_package(blank=True, out=Path("package"))
+    temporary_directory = export_module.tempfile.TemporaryDirectory
+
+    @contextmanager
+    def relative_temporary_directory(*args, **kwargs):
+        with temporary_directory(*args, **kwargs) as folder:
+            # Python 3.10/3.11 return a relative path for a relative dir.
+            # Reproduce that behavior on every interpreter in the test matrix.
+            if kwargs.get("dir") is not None and not Path(kwargs["dir"]).is_absolute():
+                yield str(Path(folder).resolve().relative_to(Path.cwd()))
+            else:
+                yield folder
+
+    monkeypatch.setattr(export_module.tempfile, "TemporaryDirectory", relative_temporary_directory)
+    output = Path("review.zip" if zip_output else "review")
+
+    result = export_module.export_package(package.root, output, mode="draft", zip_output=zip_output)
+
+    assert result == output
+    if zip_output:
+        with zipfile.ZipFile(output) as archive:
+            report = json.loads(archive.read("validation_report.json"))
+            assert "checksums/sha256.txt" in archive.namelist()
+    else:
+        report = json.loads((output / "validation_report.json").read_text(encoding="utf-8"))
+        assert (output / "checksums/sha256.txt").is_file()
+    assert report["overall_status"] == "pass"
 
 
 def test_atomic_replace_restores_previous_output_if_install_fails(tmp_path: Path) -> None:

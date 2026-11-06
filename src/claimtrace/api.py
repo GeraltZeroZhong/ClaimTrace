@@ -11,7 +11,6 @@ from typing import Any
 from claimtrace.completion import (
     apply_answers,
     check_answers,
-    completed_answer_sections,
     completion_tasks_for_template,
     ensure_scene_for_images,
     load_answers,
@@ -28,6 +27,7 @@ from claimtrace.package.layout import (
     create_package_root,
     load_semantic_layer,
     read_completion_tasks,
+    update_completion_tasks,
     write_completion_tasks,
     write_semantic_layer,
 )
@@ -57,10 +57,14 @@ class ClaimTracePackage:
         *,
         scope: str = "panel",
     ) -> Claim:
-        """Add or replace a claim in the CAL."""
+        """Append a claim with an unused ID to the CAL."""
 
+        used_ids = {item.id for item in self.semantic_layer.claims}
+        number = 1
+        while f"claim:{number:03d}" in used_ids:
+            number += 1
         claim = Claim(
-            id=f"claim:{len(self.semantic_layer.claims) + 1:03d}",
+            id=f"claim:{number:03d}",
             claim_text=ProvenancedString(
                 value=text,
                 source_type=SourceType.user_asserted,
@@ -141,12 +145,7 @@ class ClaimTracePackage:
             raise ValueError("Answer file needs updates:\n" + "\n".join(f"- {problem}" for problem in problems))
         apply_answers(self.root, self.semantic_layer, answers, answer_base=answers_path.parent)
         self.save()
-        completed_sections = completed_answer_sections(answers)
-        tasks = read_completion_tasks(self.root)
-        for task in tasks:
-            if task.status != "waived":
-                task.status = "answered" if task.section in completed_sections else "open"
-        write_completion_tasks(self.root, tasks)
+        update_completion_tasks(self.root, self.semantic_layer, answers)
         return self
 
     def validate(self, mode: str = "draft") -> ValidationReport:
@@ -155,6 +154,26 @@ class ClaimTracePackage:
         from claimtrace.validation.engine import validate_package
 
         return validate_package(self.root, mode=mode)
+
+    def check_proposal(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Preview an agent proposal without modifying the package."""
+        from claimtrace.proposals import check_proposal
+
+        return check_proposal(self, data)
+
+    def propose(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Save a pending proposal, retaining current scientific records."""
+        from claimtrace.proposals import create_proposal
+
+        return create_proposal(self, data)
+
+    def review_proposal(self, identity: str, *, decision: str, reviewer: str,
+                        note: str = "", changes: list[dict] | None = None) -> dict[str, Any]:
+        """Record a person's explicit decision about a saved proposal."""
+        from claimtrace.proposals import review_proposal
+
+        return review_proposal(self, identity, decision=decision, reviewer=reviewer,
+                               note=note, changes=changes)
 
     def export(
         self,
@@ -301,7 +320,7 @@ def export_package(
     root = package.root if isinstance(package, ClaimTracePackage) else Path(package)
     output_path = Path(output)
     if zip_output is None:
-        zip_output = output_path.suffix == ".zip"
+        zip_output = output_path.suffix.lower() == ".zip"
     return _export(root, output_path, mode=mode, zip_output=zip_output, force=force)
 
 
@@ -327,7 +346,15 @@ def _coerce_paths(value: Any) -> list[Path]:
         return []
     if isinstance(value, (str, Path)):
         return [Path(value)]
-    return [Path(item) for item in value]
+    paths: list[Path] = []
+    seen: set[Path] = set()
+    for item in value:
+        path = Path(item)
+        resolved = path.resolve()
+        if resolved not in seen:
+            paths.append(path)
+            seen.add(resolved)
+    return paths
 
 
 def _ensure_inputs_exist(paths: list[Path]) -> None:

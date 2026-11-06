@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Data sources | ClaimTrace illustrated guide</title><link rel="stylesheet" href="site.css"><script defer src="site.js"></script></head><body><a class="skip" href="#main">Skip to tutorial</a><header class="topbar"><a class="brand" href="index.html">ClaimTrace<small>ILLUSTRATED GUIDE</small></a><nav class="toplinks" aria-label="Guide"><a href="index.html">Start here</a><a href="all-cases.html">All cases</a><a class="optional" href="recipient.html">Open a package</a><a href="sources.html">Sources</a></nav></header><div class="layout"><nav class="sidebar" aria-label="Cases"><a href="index.html">Start here</a><a href="all-cases.html">All 12 cases</a><h2>Describe molecular views</h2><a class="case-link" href="cases/f1-b1.html"><span class="case-ref">Figure 1B1</span>Pocket visibility</a><a class="case-link" href="cases/f1-b5.html"><span class="case-ref">Figure 1B5</span>Local to global context</a><a class="case-link" href="cases/f1-b6.html"><span class="case-ref">Figure 1B6</span>Preserve an alternate AP5 interaction view</a><h2>Check contacts and distances</h2><a class="case-link" href="cases/f1-b2.html"><span class="case-ref">Figure 1B2</span>Contacts across views</a><a class="case-link" href="cases/f3-a.html"><span class="case-ref">Figure 4A</span>Document conserved pocket-water selection</a><a class="case-link" href="cases/f3-c.html"><span class="case-ref">Figure 4C</span>Check short ligand contacts</a><a class="case-link" href="cases/f3-d.html"><span class="case-ref">Figure 4D</span>Record an Asp110-ligand distance</a><h2>Compare models and ensembles</h2><a class="case-link" href="cases/f1-b3.html"><span class="case-ref">Figure 1B3</span>Confidence and geometry</a><a class="case-link" href="cases/f1-b4.html"><span class="case-ref">Figure 1B4</span>AP5 conformational clusters</a><a class="case-link" href="cases/f3-b.html"><span class="case-ref">Figure 4B</span>Compare ranked ligand poses</a><h2>Review trajectories</h2><a class="case-link" href="cases/f3-e.html"><span class="case-ref">Figure 4E</span>Trace interaction state changes</a><a class="case-link" href="cases/f3-f.html"><span class="case-ref">Figure 4F</span>Compare trajectory repeats</a><h2>Share and continue</h2><a href="recipient.html">Open a review package</a></nav><main class="main" id="main"><details class="mobile-nav"><summary>Browse the guide</summary><a href="index.html">Start here</a><a href="all-cases.html">All 12 cases</a><h2>Describe molecular views</h2><a class="case-link" href="cases/f1-b1.html"><span class="case-ref">Figure 1B1</span>Pocket visibility</a><a class="case-link" href="cases/f1-b5.html"><span class="case-ref">Figure 1B5</span>Local to global context</a><a class="case-link" href="cases/f1-b6.html"><span class="case-ref">Figure 1B6</span>Preserve an alternate AP5 interaction view</a><h2>Check contacts and distances</h2><a class="case-link" href="cases/f1-b2.html"><span class="case-ref">Figure 1B2</span>Contacts across views</a><a class="case-link" href="cases/f3-a.html"><span class="case-ref">Figure 4A</span>Document conserved pocket-water selection</a><a class="case-link" href="cases/f3-c.html"><span class="case-ref">Figure 4C</span>Check short ligand contacts</a><a class="case-link" href="cases/f3-d.html"><span class="case-ref">Figure 4D</span>Record an Asp110-ligand distance</a><h2>Compare models and ensembles</h2><a class="case-link" href="cases/f1-b3.html"><span class="case-ref">Figure 1B3</span>Confidence and geometry</a><a class="case-link" href="cases/f1-b4.html"><span class="case-ref">Figure 1B4</span>AP5 conformational clusters</a><a class="case-link" href="cases/f3-b.html"><span class="case-ref">Figure 4B</span>Compare ranked ligand poses</a><h2>Review trajectories</h2><a class="case-link" href="cases/f3-e.html"><span class="case-ref">Figure 4E</span>Trace interaction state changes</a><a class="case-link" href="cases/f3-f.html"><span class="case-ref">Figure 4F</span>Compare trajectory repeats</a><h2>Share and continue</h2><a href="recipient.html">Open a review package</a></details><div class="eyebrow">Sources and attribution</div><h1>Tutorial data sources</h1>
+<p>The 12 tutorials follow the examples in <em>Beyond Display</em>. Their input bundles contain selected real structures, docking poses, derived tables, saved scenes and figures from the accompanying research materials. The completed packages add the claims, evidence links, settings and limitations entered during the illustrated GUI workflow.</p>
+<p>Each case below identifies its source system and all imported files. Scientific inputs retain their recorded scope: a structure, a derived measurement and a saved view each contribute a different part of the audit.</p>
+<h2>Source records</h2>
+<ul>
+<li><strong>Experimental coordinates:</strong> <a href="https://www.rcsb.org/">RCSB PDB</a>. The cases use the accessioned coordinate files listed below. Cite the corresponding structure records when reusing them.</li>
+<li><strong>Predicted structure:</strong> <a href="https://alphafold.ebi.ac.uk/files/AF-P69441-F1-model_v6.cif">AlphaFold DB model AF-P69441-F1, version 6</a>, for UniProt P69441.</li>
+<li><strong>Docking poses and receptor inputs:</strong> Xu and colleagues, <a href="https://zenodo.org/records/19560204">A Multi-Paradigm Benchmark of Molecular Docking: From Physics to Co-folding and Hybrid Models</a>, version v1, 13 April 2026, DOI 10.5281/zenodo.19560204. The official record identifies the GNINA pose archive, Vina/GNINA PDBQT input archive and results tables. It lists the <a href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 license</a>.</li>
+<li><strong>Interaction fingerprints:</strong> Bouysset and Fiorucci, <a href="https://github.com/chemosim-lab/ProLIF-paper">ProLIF-paper source repository</a>, archived as <a href="https://zenodo.org/records/4945869">version 1.0.0</a>, DOI 10.5281/zenodo.4945869. The included pickle comes from repository revision <code>5d6d22e</code>. Cite <a href="https://doi.org/10.1186/s13321-021-00548-6">ProLIF: a library to encode molecular interactions as fingerprints</a>.</li>
+<li><strong>Simulation setup and trajectory-derived tables:</strong> <a href="https://www.gpcrmd.org/dynadb/dynamics/id/106/">GPCRmd dynamic 106</a>, as described by the supplied setup records. The tutorial bundles the selected metadata and derived tables; trajectory replay requires the corresponding topology and trajectory files.</li>
+<li><strong>Validity-check context:</strong> <a href="https://doi.org/10.1039/D3SC04185A">PoseBusters</a>. Case 4C links the supplied findings and measured close contacts to the selected GNINA pose.</li>
+</ul>
+<h2>Attribution and file variants</h2>
+<p>The ProLIF source repository applies Apache License 2.0 to its files unless a file states otherwise. Its copyright notice is retained here verbatim:</p>
+<blockquote>
+<p>Copyright 2021 Cédric BOUYSSET</p>
+</blockquote>
+<p>See <a href="licenses/ProLIF-paper-LICENSE.txt">the original ProLIF license</a>. The case 4E downloads also carry this license. Upstream structures and datasets retain their respective source terms; the ClaimTrace software license covers the software.</p>
+<p>The file lists below distinguish deposited coordinates and published datasets from author-prepared scenes, figures and derived analyses. Receptor PDBQT files for the docking cases retain the supplied coordinate records and use portable source labels in their <code>REMARK</code> headers. The case 1B6 replay script loads the saved PyMOL session. Each download includes its source attribution and applicable upstream license notices.</p>
+<p>The flat <code>files/</code> folders are prepared for GUI import. Native PyMOL replay uses the folder layout in a completed example package. In case 1B6, run the replay script from that completed package’s root so that its <code>native/</code> path resolves.</p>
+<h2>Reuse and citation</h2>
+<p>ClaimTrace-authored tutorial materials follow the repository’s <a href="https://github.com/GeraltZeroZhong/ClaimTrace/blob/v1.0/LICENSE">MIT License</a>. The scientific inputs and their derivatives retain the source terms below:</p>
+<table class="status-table">
+<thead><tr><th>Material</th><th>Source terms</th></tr></thead>
+<tbody>
+<tr><td>PDB coordinates</td><td><a href="https://www.rcsb.org/pages/usage-policy">CC0 1.0</a></td></tr>
+<tr><td>AlphaFold DB model</td><td><a href="https://alphafold.ebi.ac.uk/assets/License-Disclaimer.pdf">CC BY 4.0</a></td></tr>
+<tr><td>Docking benchmark, Zenodo 19560204</td><td><a href="https://zenodo.org/records/19560204">CC BY 4.0</a></td></tr>
+<tr><td>GPCRmd data</td><td>CC BY 4.0, as stated in the <a href="https://discovery.dundee.ac.uk/ws/portalfiles/portal/49547242/49491_2_merged_1590582664_1.pdf">GPCRmd paper’s Methods</a></td></tr>
+<tr><td>ProLIF-paper files</td><td><a href="licenses/ProLIF-paper-LICENSE.txt">Apache License 2.0</a></td></tr>
+</tbody></table>
+<p>Software citation: Zhong S. <em>ClaimTrace</em>, version 1.0. <a href="https://github.com/GeraltZeroZhong/ClaimTrace">Source repository</a>. When reusing tutorial inputs or derived results, also cite the corresponding upstream records and publications listed above and retain their attribution and license notices. The per-file descriptions below identify the sources and author-prepared analyses.</p>
+<h2>Cases and included inputs</h2>
+<h3>Figure 1B1 — Adenylate kinase pocket views</h3>
+<p>Source: <a href="https://www.rcsb.org/structure/1AKE">RCSB PDB 1AKE, chain A, ligand AP5.</a></p>
+<p>Experimental coordinates; article-authored PyMOL scenes, native sessions and rendered views.</p>
+<p><a href="cases/f1-b1.html">Open tutorial</a> · <a href="downloads/f1-b1-inputs.zip">Download inputs</a></p>
+<table class="status-table">
+<thead>
+<tr>
+<th>Imported file</th>
+<th>Origin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1_1_occluded_ligand.pml</code></td>
+<td>Author-prepared PyMOL scene script for adenylate kinase and AP5 in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>1_2_buried_pocket_surface.pml</code></td>
+<td>Author-prepared PyMOL scene script for adenylate kinase and AP5 in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>1_1_occluded_ligand.png</code></td>
+<td>Author-rendered molecular view of adenylate kinase and AP5 in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>1_2_buried_pocket_surface.png</code></td>
+<td>Author-rendered molecular view of adenylate kinase and AP5 in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>1_1_occluded_ligand.pse</code></td>
+<td>Author-saved PyMOL session for adenylate kinase and AP5 in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>1_2_buried_pocket_surface.pse</code></td>
+<td>Author-saved PyMOL session for adenylate kinase and AP5 in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>pdb_00001ake.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 1AKE, in compressed PDBx/mmCIF format.</td>
+</tr>
+</tbody>
+</table>
+<h3>Figure 1B5 — Adenylate kinase domain context</h3>
+<p>Source: <a href="https://www.rcsb.org/structure/1AKE">RCSB PDB 1AKE, chain A, ligand AP5.</a></p>
+<p>Experimental coordinates; article-authored overall view, native session and source notes. Domain ranges are recorded with the tutorial interpretation.</p>
+<p><a href="cases/f1-b5.html">Open tutorial</a> · <a href="downloads/f1-b5-inputs.zip">Download inputs</a></p>
+<table class="status-table">
+<thead>
+<tr>
+<th>Imported file</th>
+<th>Origin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>5_1_overall_structure.pml</code></td>
+<td>Author-prepared PyMOL scene script for adenylate kinase domains in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>5_1_overall_structure.png</code></td>
+<td>Author-rendered molecular view of adenylate kinase domains in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>5_1_overall_structure.pse</code></td>
+<td>Author-saved PyMOL session for adenylate kinase domains in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>SOURCES.md</code></td>
+<td>Source accessions and selection criteria for the adenylate kinase examples.</td>
+</tr>
+<tr>
+<td><code>pdb_00001ake.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 1AKE, in compressed PDBx/mmCIF format.</td>
+</tr>
+</tbody>
+</table>
+<h3>Figure 1B6 — Alternate camera view</h3>
+<p>Source: <a href="https://www.rcsb.org/structure/1AKE">RCSB PDB 1AKE, chain A, ligand AP5.</a></p>
+<p>Experimental coordinates; article-authored alternate view, native session and contact summary; a tutorial-authored replay script loads the native session.</p>
+<p><a href="cases/f1-b6.html">Open tutorial</a> · <a href="downloads/f1-b6-inputs.zip">Download inputs</a></p>
+<table class="status-table">
+<thead>
+<tr>
+<th>Imported file</th>
+<th>Origin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>6_1_interaction_view_alternate.pml</code></td>
+<td>Author-prepared PyMOL scene script for the alternate AP5 view in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>6_1_interaction_view_alternate.png</code></td>
+<td>Author-rendered molecular view of the alternate AP5 view in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>2_1_interaction_view_contacts.json</code></td>
+<td>Author-calculated contact summary for AP5 and adenylate kinase in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>6_1_interaction_view_alternate.pse</code></td>
+<td>Author-saved PyMOL session for the alternate AP5 view in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>pdb_00001ake.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 1AKE, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>replay-6_1_interaction_view_alternate.pml</code></td>
+<td>Tutorial-authored native-session loader. Run from the completed package root.</td>
+</tr>
+</tbody>
+</table>
+<h3>Figure 1B2 — Adenylate kinase contacts</h3>
+<p>Source: <a href="https://www.rcsb.org/structure/1AKE">RCSB PDB 1AKE, chain A, ligand AP5.</a></p>
+<p>Experimental coordinates; article-authored contact tables, PyMOL scene and contact-map figure. The displayed map and full-protein pair table use different selections.</p>
+<p><a href="cases/f1-b2.html">Open tutorial</a> · <a href="downloads/f1-b2-inputs.zip">Download inputs</a></p>
+<table class="status-table">
+<thead>
+<tr>
+<th>Imported file</th>
+<th>Origin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>2_1_interaction_view.pml</code></td>
+<td>Author-prepared PyMOL scene script for AP5 contacts in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>2_1_interaction_view.png</code></td>
+<td>Author-rendered molecular view of AP5 contacts in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>2_2_residue_contact_map.png</code></td>
+<td>Author-generated residue contact-map figure for AP5 in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>2_1_interaction_view.pse</code></td>
+<td>Author-saved PyMOL session for AP5 contacts in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>2_2_contact_map_residues.csv</code></td>
+<td>Residue selections used in the author-generated PDB 1AKE contact map.</td>
+</tr>
+<tr>
+<td><code>2_2_contact_map_pairs.csv</code></td>
+<td>Author-calculated residue contact pairs for PDB 1AKE; the displayed map uses a selected subset.</td>
+</tr>
+<tr>
+<td><code>2_1_interaction_view_contacts.json</code></td>
+<td>Author-calculated contact summary for AP5 and adenylate kinase in PDB 1AKE.</td>
+</tr>
+<tr>
+<td><code>pdb_00001ake.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 1AKE, in compressed PDBx/mmCIF format.</td>
+</tr>
+</tbody>
+</table>
+<h3>Figure 4A — BACE1 pocket waters</h3>
+<p>Source: <a href="https://www.rcsb.org/structure/3UQX">RCSB PDB 3UQX and the 20-entry BACE1 selection recorded in bace1_selected_structures.csv.</a></p>
+<p>Experimental reference coordinates; article-authored water clustering, alignment and geometric bridge-proxy tables; three recorded visual states.</p>
+<p><a href="cases/f3-a.html">Open tutorial</a> · <a href="downloads/f3-a-inputs.zip">Download inputs</a></p>
+<table class="status-table">
+<thead>
+<tr>
+<th>Imported file</th>
+<th>Origin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>3UQX.pdb</code></td>
+<td>Experimental coordinates from RCSB PDB 3UQX.</td>
+</tr>
+<tr>
+<td><code>alignment_metadata.csv</code></td>
+<td>Author-recorded structural alignments for the BACE1 coordinate set listed in bace1_selected_structures.csv.</td>
+</tr>
+<tr>
+<td><code>bace1_selected_structures.csv</code></td>
+<td>PDB accessions and selection information for the BACE1 water comparison.</td>
+</tr>
+<tr>
+<td><code>case01_real_a1_all_waters.pml</code></td>
+<td>Author-prepared PyMOL scene script for BACE1 pocket waters in PDB 3UQX.</td>
+</tr>
+<tr>
+<td><code>case01_real_a1_all_waters.png</code></td>
+<td>Author-rendered molecular view of BACE1 pocket waters in PDB 3UQX.</td>
+</tr>
+<tr>
+<td><code>case01_real_a1_all_waters.pse</code></td>
+<td>Author-saved PyMOL session for BACE1 pocket waters in PDB 3UQX.</td>
+</tr>
+<tr>
+<td><code>case01_real_a2_retained_waters.pml</code></td>
+<td>Author-prepared PyMOL scene script for BACE1 pocket waters in PDB 3UQX.</td>
+</tr>
+<tr>
+<td><code>case01_real_a2_retained_waters.png</code></td>
+<td>Author-rendered molecular view of BACE1 pocket waters in PDB 3UQX.</td>
+</tr>
+<tr>
+<td><code>case01_real_a2_retained_waters.pse</code></td>
+<td>Author-saved PyMOL session for BACE1 pocket waters in PDB 3UQX.</td>
+</tr>
+<tr>
+<td><code>case01_real_a3_waters_removed.pml</code></td>
+<td>Author-prepared PyMOL scene script for BACE1 pocket waters in PDB 3UQX.</td>
+</tr>
+<tr>
+<td><code>case01_real_a3_waters_removed.png</code></td>
+<td>Author-rendered molecular view of BACE1 pocket waters in PDB 3UQX.</td>
+</tr>
+<tr>
+<td><code>case01_real_a3_waters_removed.pse</code></td>
+<td>Author-saved PyMOL session for BACE1 pocket waters in PDB 3UQX.</td>
+</tr>
+<tr>
+<td><code>water_evidence_summary.json</code></td>
+<td>Author-derived summary of BACE1 water clusters, retained waters and geometric bridge proxies.</td>
+</tr>
+<tr>
+<td><code>water_evidence_table.csv</code></td>
+<td>Author-derived BACE1 water positions, cluster assignments and geometric bridge-proxy records.</td>
+</tr>
+</tbody>
+</table>
+<p>The source selection lists <code>3UQX</code>, <code>5HE5</code>, <code>4FCO</code>, <code>5HD0</code>, <code>5HDU</code>, <code>4ZPE</code>, <code>5HDX</code>, <code>4IVT</code>, <code>4D88</code>, <code>7MYR</code>, <code>3TPP</code>, <code>3UQU</code>, <code>4D89</code>, <code>7MYI</code>, <code>3VF3</code>, <code>5HDZ</code>, <code>5HU1</code>, <code>4L7G</code>, <code>6UVY</code> and <code>4R93</code>. The tutorial carries the reference coordinate file and the selected evidence tables.</p>
+<h3>Figure 4C — Close contacts in a docking pose</h3>
+<p>Source: <a href="https://zenodo.org/records/19560204">A Multi-Paradigm Benchmark of Molecular Docking, Zenodo 19560204; complex 7xbn__1__1.A__1.C_1.D, GNINA rank 3.</a></p>
+<p>Supplied GNINA SDF pose and benchmark receptor PDBQT; article-authored selected-contact table, scenes and figure. PoseBusters supplies methodological context for the recorded validity findings.</p>
+<p><a href="cases/f3-c.html">Open tutorial</a> · <a href="downloads/f3-c-inputs.zip">Download inputs</a></p>
+<table class="status-table">
+<thead>
+<tr>
+<th>Imported file</th>
+<th>Origin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>case03_real_validity_failure_7xbn_rank3.pml</code></td>
+<td>Author-prepared PyMOL scene script for GNINA rank 3 of complex 7xbn__1__1.A__1.C_1.D.</td>
+</tr>
+<tr>
+<td><code>case03_real_validity_failure_7xbn_rank3.png</code></td>
+<td>Author-rendered molecular view of GNINA rank 3 of complex 7xbn__1__1.A__1.C_1.D.</td>
+</tr>
+<tr>
+<td><code>case03_real_validity_failure_7xbn_rank3.png.metadata.json</code></td>
+<td>Figure-generation and source metadata for GNINA rank 3 of complex 7xbn__1__1.A__1.C_1.D.</td>
+</tr>
+<tr>
+<td><code>case03_real_validity_failure_7xbn_rank3.pse</code></td>
+<td>Author-saved PyMOL session for GNINA rank 3 of complex 7xbn__1__1.A__1.C_1.D.</td>
+</tr>
+<tr>
+<td><code>case03_selected_close_contacts.csv</code></td>
+<td>Author-calculated short-contact distances and atom identities for GNINA rank 3 of complex 7xbn__1__1.A__1.C_1.D.</td>
+</tr>
+<tr>
+<td><code>protein.pdbqt</code></td>
+<td>Receptor PDBQT for complex 7xbn__1__1.A__1.C_1.D from the Multi-Paradigm docking benchmark, Zenodo 19560204. The REMARK header uses a portable source label; coordinate records retain the supplied values.</td>
+</tr>
+<tr>
+<td><code>rank3_score0.63.sdf</code></td>
+<td>Supplied GNINA rank 3 pose for complex 7xbn__1__1.A__1.C_1.D from the Multi-Paradigm docking benchmark, Zenodo 19560204.</td>
+</tr>
+</tbody>
+</table>
+<h3>Figure 4D — D3 receptor distance and setup</h3>
+<p>Sources: <a href="https://www.rcsb.org/structure/3PBL">RCSB PDB 3PBL</a>, eticlopride; <a href="https://www.gpcrmd.org/dynadb/dynamics/id/106/">GPCRmd dynamic 106</a> setup record.</p>
+<p>Experimental coordinates; article-authored Asp110 distance view and native session; GPCRmd setup and system-count tables.</p>
+<p><a href="cases/f3-d.html">Open tutorial</a> · <a href="downloads/f3-d-inputs.zip">Download inputs</a></p>
+<table class="status-table">
+<thead>
+<tr>
+<th>Imported file</th>
+<th>Origin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>3PBL.pdb</code></td>
+<td>Experimental coordinates from RCSB PDB 3PBL.</td>
+</tr>
+<tr>
+<td><code>case04_real_3pbl_eticlopride_asp110.pml</code></td>
+<td>Author-prepared PyMOL scene script for Asp110 and eticlopride in PDB 3PBL.</td>
+</tr>
+<tr>
+<td><code>case04_real_3pbl_eticlopride_asp110.png</code></td>
+<td>Author-rendered molecular view of Asp110 and eticlopride in PDB 3PBL.</td>
+</tr>
+<tr>
+<td><code>case04_real_3pbl_eticlopride_asp110.pse</code></td>
+<td>Author-saved PyMOL session for Asp110 and eticlopride in PDB 3PBL.</td>
+</tr>
+<tr>
+<td><code>gpcrmd_dyn106_setup_metadata.csv</code></td>
+<td>Simulation setup information for GPCRmd dynamic 106, separate from the PDB 3PBL crystal structure.</td>
+</tr>
+<tr>
+<td><code>gpcrmd_dyn106_system_counts.csv</code></td>
+<td>System composition for GPCRmd dynamic 106, with residue and atom counts.</td>
+</tr>
+</tbody>
+</table>
+<h3>Figure 1B3 — Confidence and backbone geometry</h3>
+<p>Source: <a href="https://alphafold.ebi.ac.uk/files/AF-P69441-F1-model_v6.cif">AlphaFold DB AF-P69441-F1, model v6; UniProt P69441.</a></p>
+<p>Predicted coordinates; article-authored pLDDT view and cctbx/MolProbity Ramachandran results. The geometry table covers the AlphaFold model.</p>
+<p><a href="cases/f1-b3.html">Open tutorial</a> · <a href="downloads/f1-b3-inputs.zip">Download inputs</a></p>
+<table class="status-table">
+<thead>
+<tr>
+<th>Imported file</th>
+<th>Origin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>3_1_alphafold_plddt.pml</code></td>
+<td>Author-prepared PyMOL scene script for AlphaFold model AF-P69441-F1 v6.</td>
+</tr>
+<tr>
+<td><code>3_1_alphafold_plddt.png</code></td>
+<td>Author-rendered molecular view of AlphaFold model AF-P69441-F1 v6.</td>
+</tr>
+<tr>
+<td><code>3_2_ramachandran_general.png</code></td>
+<td>Author-generated Ramachandran plot from cctbx/MolProbity analysis of AlphaFold model AF-P69441-F1 v6.</td>
+</tr>
+<tr>
+<td><code>3_2_ramachandran.csv</code></td>
+<td>Residue-level backbone geometry results from cctbx/MolProbity analysis of AlphaFold model AF-P69441-F1 v6.</td>
+</tr>
+<tr>
+<td><code>3_1_alphafold_plddt.pse</code></td>
+<td>Author-saved PyMOL session for AlphaFold model AF-P69441-F1 v6.</td>
+</tr>
+<tr>
+<td><code>3_2_ramachandran.json</code></td>
+<td>Backbone geometry results and summary from cctbx/MolProbity analysis of AlphaFold model AF-P69441-F1 v6.</td>
+</tr>
+<tr>
+<td><code>AF-P69441-F1-model_v6.cif</code></td>
+<td>AlphaFold DB predicted coordinates for UniProt P69441, model AF-P69441-F1 v6.</td>
+</tr>
+</tbody>
+</table>
+<h3>Figure 1B4 — AP5 structural ensemble</h3>
+<p>Source: <a href="https://www.rcsb.org/">Sixteen RCSB PDB structures selected using UniProt P69441 and chemical component AP5.</a></p>
+<p>Experimental coordinates; article-authored alignment, PCA, assignments, representatives and figures. The 30 selected AP5 instances support a descriptive structural comparison.</p>
+<p><a href="cases/f1-b4.html">Open tutorial</a> · <a href="downloads/f1-b4-inputs.zip">Download inputs</a></p>
+<table class="status-table">
+<thead>
+<tr>
+<th>Imported file</th>
+<th>Origin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>4_1_ap5_conformational_landscape.png</code></td>
+<td>Author-generated landscape for the aligned AP5 structural ensemble.</td>
+</tr>
+<tr>
+<td><code>4_2_ap5_representative_states.png</code></td>
+<td>Author-generated comparison of representative AP5 conformations from the selected PDB structures.</td>
+</tr>
+<tr>
+<td><code>4_1_ap5_conformational_landscape.csv</code></td>
+<td>Author-calculated principal-component coordinates, density estimates and basin assignments for the AP5 landscape.</td>
+</tr>
+<tr>
+<td><code>B4_PROVENANCE.json</code></td>
+<td>Selection criteria, common atoms, alignment, representation and principal-component analysis settings for the AP5 ensemble.</td>
+</tr>
+<tr>
+<td><code>4_1_ap5_conformational_landscape.json</code></td>
+<td>Author-recorded analysis metadata for the AP5 conformational landscape.</td>
+</tr>
+<tr>
+<td><code>ap5_instance_assignments.csv</code></td>
+<td>Author-derived AP5 instance assignments, principal-component coordinates and alignment results, with PDB and chain identities.</td>
+</tr>
+<tr>
+<td><code>ap5_pca_explained_variance.csv</code></td>
+<td>Explained-variance ratios from the principal-component analysis of aligned AP5 coordinates.</td>
+</tr>
+<tr>
+<td><code>ap5_representative_states.csv</code></td>
+<td>Author-selected representative AP5 instances with cluster populations and PDB identities.</td>
+</tr>
+<tr>
+<td><code>common_ap5_atom_names.json</code></td>
+<td>Shared AP5 heavy-atom names used to compare the selected structural instances.</td>
+</tr>
+<tr>
+<td><code>pdb_00001ake.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 1AKE, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00001e4v.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 1E4V, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00001e4y.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 1E4Y, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00003hpq.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 3HPQ, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00003hpr.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 3HPR, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00004x8l.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 4X8L, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00004x8o.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 4X8O, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00005eje.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 5EJE, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00006ham.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 6HAM, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00006hap.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 6HAP, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00008bqf.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 8BQF, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00008pvw.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 8PVW, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00008q2b.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 8Q2B, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00009l14.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 9L14, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00009r6u.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 9R6U, in compressed PDBx/mmCIF format.</td>
+</tr>
+<tr>
+<td><code>pdb_00009r71.cif.gz</code></td>
+<td>Experimental coordinates from RCSB PDB 9R71, in compressed PDBx/mmCIF format.</td>
+</tr>
+</tbody>
+</table>
+<p>Included PDB entries: <code>1AKE</code>, <code>1E4V</code>, <code>1E4Y</code>, <code>3HPQ</code>, <code>3HPR</code>, <code>4X8L</code>, <code>4X8O</code>, <code>5EJE</code>, <code>6HAM</code>, <code>6HAP</code>, <code>8BQF</code>, <code>8PVW</code>, <code>8Q2B</code>, <code>9L14</code>, <code>9R6U</code> and <code>9R71</code>. The saved density-derived landscape remains an exploratory display of this structural sample.</p>
+<h3>Figure 4B — GNINA pose comparison</h3>
+<p>Source: <a href="https://zenodo.org/records/19560204">A Multi-Paradigm Benchmark of Molecular Docking, Zenodo 19560204; complex 7r26__1__1.A__1.B.</a></p>
+<p>Five supplied GNINA SDF poses and the benchmark receptor PDBQT; article-authored comparison table, scenes and figure. Reference RMSDs are supplied benchmark results.</p>
+<p><a href="cases/f3-b.html">Open tutorial</a> · <a href="downloads/f3-b-inputs.zip">Download inputs</a></p>
+<table class="status-table">
+<thead>
+<tr>
+<th>Imported file</th>
+<th>Origin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>case02_pose_evidence_augmented.csv</code></td>
+<td>Author-prepared comparison combining supplied GNINA scores and reference RMSDs with contact and pocket-occupancy summaries for complex 7r26__1__1.A__1.B.</td>
+</tr>
+<tr>
+<td><code>case02_real_gnina_pose_ensemble_7r26.pml</code></td>
+<td>Author-prepared PyMOL scene script for the five GNINA poses of complex 7r26__1__1.A__1.B.</td>
+</tr>
+<tr>
+<td><code>case02_real_gnina_pose_ensemble_7r26.png</code></td>
+<td>Author-rendered molecular view of the five GNINA poses of complex 7r26__1__1.A__1.B.</td>
+</tr>
+<tr>
+<td><code>case02_real_gnina_pose_ensemble_7r26.png.metadata.json</code></td>
+<td>Figure-generation and source metadata for the five GNINA poses of complex 7r26__1__1.A__1.B.</td>
+</tr>
+<tr>
+<td><code>case02_real_gnina_pose_ensemble_7r26.pse</code></td>
+<td>Author-saved PyMOL session for the five GNINA poses of complex 7r26__1__1.A__1.B.</td>
+</tr>
+<tr>
+<td><code>protein.pdbqt</code></td>
+<td>Receptor PDBQT for complex 7r26__1__1.A__1.B from the Multi-Paradigm docking benchmark, Zenodo 19560204. The REMARK header uses a portable source label; coordinate records retain the supplied values.</td>
+</tr>
+<tr>
+<td><code>rank1_score1.00.sdf</code></td>
+<td>Supplied GNINA rank 1 pose for complex 7r26__1__1.A__1.B from the Multi-Paradigm docking benchmark, Zenodo 19560204.</td>
+</tr>
+<tr>
+<td><code>rank2_score1.00.sdf</code></td>
+<td>Supplied GNINA rank 2 pose for complex 7r26__1__1.A__1.B from the Multi-Paradigm docking benchmark, Zenodo 19560204.</td>
+</tr>
+<tr>
+<td><code>rank3_score0.91.sdf</code></td>
+<td>Supplied GNINA rank 3 pose for complex 7r26__1__1.A__1.B from the Multi-Paradigm docking benchmark, Zenodo 19560204.</td>
+</tr>
+<tr>
+<td><code>rank4_score0.85.sdf</code></td>
+<td>Supplied GNINA rank 4 pose for complex 7r26__1__1.A__1.B from the Multi-Paradigm docking benchmark, Zenodo 19560204.</td>
+</tr>
+<tr>
+<td><code>rank5_score0.82.sdf</code></td>
+<td>Supplied GNINA rank 5 pose for complex 7r26__1__1.A__1.B from the Multi-Paradigm docking benchmark, Zenodo 19560204.</td>
+</tr>
+</tbody>
+</table>
+<h3>Figure 4E — ProLIF interaction events</h3>
+<p>Source: <a href="https://zenodo.org/records/4945869">chemosim-lab/ProLIF-paper v1.0.0, Zenodo 4945869, repository revision 5d6d22e; 5-HT1B–ergotamine example.</a></p>
+<p>Original precomputed Notebooks/pickles/ifp_df.pkl; article-authored event matrix, transition table and figure.</p>
+<p><a href="cases/f3-e.html">Open tutorial</a> · <a href="downloads/f3-e-inputs.zip">Download inputs</a></p>
+<table class="status-table">
+<thead>
+<tr>
+<th>Imported file</th>
+<th>Origin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>case05_real_prolif_event_matrix.csv</code></td>
+<td>Author-derived interaction-state matrix from the ProLIF-paper 5-HT1B–ergotamine fingerprints.</td>
+</tr>
+<tr>
+<td><code>case05_real_prolif_event_transitions.csv</code></td>
+<td>Author-derived interaction transition events from the ProLIF-paper 5-HT1B–ergotamine fingerprints.</td>
+</tr>
+<tr>
+<td><code>case05a_publication_prolif_event_map.png</code></td>
+<td>Author-generated interaction-state and transition-event figure for the ProLIF-paper 5-HT1B–ergotamine example.</td>
+</tr>
+<tr>
+<td><code>ifp_df.pkl</code></td>
+<td>Precomputed 5-HT1B–ergotamine interaction fingerprints from ProLIF-paper v1.0.0, Notebooks/pickles/ifp_df.pkl (repository revision 5d6d22e).</td>
+</tr>
+</tbody>
+</table>
+<h3>Figure 4F — D3 receptor replicate summary</h3>
+<p>Source: <a href="https://www.gpcrmd.org/dynadb/dynamics/id/106/">GPCRmd dynamic 106, dopamine D3 receptor–eticlopride.</a></p>
+<p>Article-authored summaries derived from three GPCRmd trajectories: distance, RMSD, interaction events, residue contacts and the summary figure.</p>
+<p><a href="cases/f3-f.html">Open tutorial</a> · <a href="downloads/f3-f-inputs.zip">Download inputs</a></p>
+<table class="status-table">
+<thead>
+<tr>
+<th>Imported file</th>
+<th>Origin</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>case05b_publication_gpcrmd_d3r_event_summary.png</code></td>
+<td>Author-generated distance, RMSD and contact comparison for three GPCRmd dynamic 106 replicates.</td>
+</tr>
+<tr>
+<td><code>d3r_eticlopride_gpcrmd_events_combined.csv</code></td>
+<td>Author-calculated per-frame Asp110–eticlopride distances and ligand RMSDs for three GPCRmd dynamic 106 replicates.</td>
+</tr>
+<tr>
+<td><code>d3r_eticlopride_gpcrmd_summary.csv</code></td>
+<td>Author-calculated replicate summaries of Asp110–eticlopride proximity, distance and ligand RMSD for GPCRmd dynamic 106.</td>
+</tr>
+<tr>
+<td><code>d3r_eticlopride_residue_contact_summary.csv</code></td>
+<td>Author-calculated residue contact summaries and transition counts for GPCRmd dynamic 106.</td>
+</tr>
+<tr>
+<td><code>d3r_eticlopride_residue_contacts_combined.csv</code></td>
+<td>Author-calculated time-resolved residue–ligand distances and contact states for GPCRmd dynamic 106.</td>
+</tr>
+</tbody>
+</table>
+<footer><a href="sources.html">Data sources and attribution</a><br>Captured in ClaimTrace on 2 October 2026. Example findings come from the supplied article materials.<br>Click any screenshot to open its original size. Molecular scene replay is checked in the original viewer.</footer></main></div><div id="copy-status" role="status" aria-live="polite"></div></body></html>

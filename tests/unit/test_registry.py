@@ -1,10 +1,11 @@
 from pathlib import Path
+import gzip
 
 import pytest
 
 from claimtrace.models import SemanticLayer
 from claimtrace.models.semantic_layer import ArtifactKind
-from claimtrace.package.registry import register_local_artifact, register_remote_artifact
+from claimtrace.package.registry import infer_role, register_local_artifact, register_remote_artifact
 from claimtrace.package.paths import ensure_relative_path
 from claimtrace.errors import PackageError, SecurityError
 
@@ -103,6 +104,27 @@ def test_fractional_coordinate_cif_is_inferred_as_structure(tmp_path: Path):
     artifact = register_local_artifact(root, semantic, source)
 
     assert artifact.role.value == "structure"
+
+
+@pytest.mark.parametrize("compressed", [False, True])
+def test_coordinate_formats_used_by_imported_figure_files(tmp_path: Path, compressed):
+    # Independently authored one-carbon records place the atom at the origin.
+    samples = {
+        "model.cif": b"data_model\n_atom_site.Cartn_x\n_atom_site.Cartn_y\n_atom_site.Cartn_z\n",
+        "receptor.pdbqt": b"REMARK docking receptor\nATOM      1  CA  ASP A  42       0.000   0.000   0.000  1.00 20.00           C\n",
+        "ligand.sdf": b"Ligand\n  RDKit\n\n  1  0  0  0  0  0            999 V2000\n    0.0000    0.0000    0.0000 C   0  0  0  0  0  0\nM  END\n$$$$\n",
+        "ligand.mol": b"Ligand\n  RDKit\n\n  0  0  0  0  0  0            999 V3000\nM  V30 BEGIN CTAB\nM  V30 COUNTS 1 0 0 0 0\nM  V30 BEGIN ATOM\nM  V30 1 C 0.0 0.0 0.0 0\nM  V30 END ATOM\nM  END\n",
+    }
+    for name, payload in samples.items():
+        path = tmp_path / (name + ".gz" if compressed else name)
+        path.write_bytes(gzip.compress(payload) if compressed else payload)
+        assert infer_role(path).value == "structure", name
+    metadata = tmp_path / "annotation.cif.gz"
+    metadata.write_bytes(gzip.compress(b"data_notes\n_entry.id example\n"))
+    assert infer_role(metadata).value == "generic"
+    broken = tmp_path / "broken.cif.gz"
+    broken.write_bytes(b"Incomplete compressed file")
+    assert infer_role(broken).value == "generic"
 
 
 def test_unregistered_destination_file_is_not_overwritten(tmp_path: Path):

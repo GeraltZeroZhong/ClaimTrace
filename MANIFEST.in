@@ -1,0 +1,9 @@
+include README.md README.pypi.md LICENSE CITATION.cff
+recursive-include tests *.py *.md *.txt *.yaml *.yml *.json *.pml *.png *.cif
+recursive-include examples *.md *.yml *.pml *.png *.cif *.csv
+recursive-include scripts *.py
+include docs/*.md
+recursive-include docs/releases *.md
+prune .internal
+prune docs/tutorial
+global-exclude __pycache__ *.py[cod]

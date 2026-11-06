@@ -31,6 +31,23 @@ def test_invalid_render_is_rejected_before_package_creation(tmp_path: Path):
     assert not output.exists()
 
 
+def test_truncated_jpeg_is_rejected_before_package_creation(tmp_path: Path):
+    original = tmp_path / "complete.jpg"
+    image = Image.new("RGB", (64, 64))
+    image.putdata([(i % 256, (i * 67) % 256, (i * 173) % 256) for i in range(4096)])
+    image.save(original, quality=95)
+    truncated = tmp_path / "truncated.jpg"
+    truncated.write_bytes(original.read_bytes()[:-200])
+
+    assert inspect_image(original)["status"] == "verified"
+    with pytest.raises(ValueError, match="cannot be decoded"):
+        inspect_image(truncated)
+    output = tmp_path / "pkg"
+    with pytest.raises(ValueError, match="cannot be decoded"):
+        init_package(image=truncated, out=output)
+    assert not output.exists()
+
+
 def test_svg_document_type_is_rejected(tmp_path: Path):
     svg = tmp_path / "unsafe.svg"
     svg.write_text(

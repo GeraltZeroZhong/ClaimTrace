@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Install and open ClaimTrace | ClaimTrace illustrated guide</title><link rel="stylesheet" href="site.css"><script defer src="site.js"></script></head><body><a class="skip" href="#main">Skip to tutorial</a><header class="topbar"><a class="brand" href="index.html">ClaimTrace<small>ILLUSTRATED GUIDE</small></a><nav class="toplinks" aria-label="Guide"><a href="index.html">Start here</a><a href="all-cases.html">All cases</a><a class="optional" href="recipient.html">Open a package</a><a href="sources.html">Sources</a></nav></header><div class="layout"><nav class="sidebar" aria-label="Cases"><a href="index.html">Start here</a><a href="all-cases.html">All 12 cases</a><h2>Describe molecular views</h2><a class="case-link" href="cases/f1-b1.html"><span class="case-ref">Figure 1B1</span>Pocket visibility</a><a class="case-link" href="cases/f1-b5.html"><span class="case-ref">Figure 1B5</span>Local to global context</a><a class="case-link" href="cases/f1-b6.html"><span class="case-ref">Figure 1B6</span>Preserve an alternate AP5 interaction view</a><h2>Check contacts and distances</h2><a class="case-link" href="cases/f1-b2.html"><span class="case-ref">Figure 1B2</span>Contacts across views</a><a class="case-link" href="cases/f3-a.html"><span class="case-ref">Figure 4A</span>Document conserved pocket-water selection</a><a class="case-link" href="cases/f3-c.html"><span class="case-ref">Figure 4C</span>Check short ligand contacts</a><a class="case-link" href="cases/f3-d.html"><span class="case-ref">Figure 4D</span>Record an Asp110-ligand distance</a><h2>Compare models and ensembles</h2><a class="case-link" href="cases/f1-b3.html"><span class="case-ref">Figure 1B3</span>Confidence and geometry</a><a class="case-link" href="cases/f1-b4.html"><span class="case-ref">Figure 1B4</span>AP5 conformational clusters</a><a class="case-link" href="cases/f3-b.html"><span class="case-ref">Figure 4B</span>Compare ranked ligand poses</a><h2>Review trajectories</h2><a class="case-link" href="cases/f3-e.html"><span class="case-ref">Figure 4E</span>Trace interaction state changes</a><a class="case-link" href="cases/f3-f.html"><span class="case-ref">Figure 4F</span>Compare trajectory repeats</a><h2>Share and continue</h2><a href="recipient.html">Open a review package</a></nav><main class="main" id="main"><details class="mobile-nav"><summary>Browse the guide</summary><a href="index.html">Start here</a><a href="all-cases.html">All 12 cases</a><h2>Describe molecular views</h2><a class="case-link" href="cases/f1-b1.html"><span class="case-ref">Figure 1B1</span>Pocket visibility</a><a class="case-link" href="cases/f1-b5.html"><span class="case-ref">Figure 1B5</span>Local to global context</a><a class="case-link" href="cases/f1-b6.html"><span class="case-ref">Figure 1B6</span>Preserve an alternate AP5 interaction view</a><h2>Check contacts and distances</h2><a class="case-link" href="cases/f1-b2.html"><span class="case-ref">Figure 1B2</span>Contacts across views</a><a class="case-link" href="cases/f3-a.html"><span class="case-ref">Figure 4A</span>Document conserved pocket-water selection</a><a class="case-link" href="cases/f3-c.html"><span class="case-ref">Figure 4C</span>Check short ligand contacts</a><a class="case-link" href="cases/f3-d.html"><span class="case-ref">Figure 4D</span>Record an Asp110-ligand distance</a><h2>Compare models and ensembles</h2><a class="case-link" href="cases/f1-b3.html"><span class="case-ref">Figure 1B3</span>Confidence and geometry</a><a class="case-link" href="cases/f1-b4.html"><span class="case-ref">Figure 1B4</span>AP5 conformational clusters</a><a class="case-link" href="cases/f3-b.html"><span class="case-ref">Figure 4B</span>Compare ranked ligand poses</a><h2>Review trajectories</h2><a class="case-link" href="cases/f3-e.html"><span class="case-ref">Figure 4E</span>Trace interaction state changes</a><a class="case-link" href="cases/f3-f.html"><span class="case-ref">Figure 4F</span>Compare trajectory repeats</a><h2>Share and continue</h2><a href="recipient.html">Open a review package</a></details><div class="eyebrow">Tutorial setup</div>
+<h1>Install and open ClaimTrace</h1>
+<p class="lead">Install ClaimTrace once, then open it from the same environment whenever you want to review a figure.</p>
+<p>Keep this guide open in a separate tab. When the welcome page appears, <a href="index.html">return to Start here</a> and begin Figure 1B1.</p>
+<p>Use Python 3.10 or newer. Check with <code>py --version</code> in Windows PowerShell or
+<code>python3 --version</code> in Linux, macOS or WSL. Installation downloads the required
+Python packages; later GUI sessions use the local installation.</p>
+<h2>Install ClaimTrace</h2>
+<p>Open a terminal in a folder of your choice and use the commands for your system.
+<code>.venv</code> holds this installation and its dependencies.</p>
+<h3>Windows PowerShell</h3>
+<pre><code class="language-powershell">py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install claimtrace==1.0
+.\.venv\Scripts\python.exe -m claimtrace --version
+</code></pre>
+<p>If your Python installation provides <code>python</code> instead of <code>py</code>, use
+<code>python -m venv .venv</code> for the first command.</p>
+<h3>Linux, macOS or WSL</h3>
+<pre><code class="language-bash">python3 -m venv .venv
+.venv/bin/python -m pip install claimtrace==1.0
+.venv/bin/python -m claimtrace --version
+</code></pre>
+<p><strong>Check:</strong> The last command prints <code>claimtrace</code> followed by its version number.
+Keep using the same terminal environment for ClaimTrace and its file paths.
+In WSL, a Windows path such as <code>C:\work\figure</code> becomes <code>/mnt/c/work/figure</code>.</p>
+<h2>Open the GUI</h2>
+<p>From the folder where you created <code>.venv</code>:</p>
+<p><strong>Windows PowerShell</strong></p>
+<pre><code class="language-powershell">.\.venv\Scripts\python.exe -m claimtrace gui
+</code></pre>
+<p><strong>Linux, macOS or WSL</strong></p>
+<pre><code class="language-bash">.venv/bin/python -m claimtrace gui
+</code></pre>
+<p>The terminal prints an address and opens your browser:</p>
+<pre><code class="language-text">ClaimTrace GUI: http://127.0.0.1:8765
+</code></pre>
+<p>If the browser stays closed, open that printed address yourself. Keep the terminal
+open during your session. The welcome page offers <strong>Choose files</strong>, <strong>Open
+package</strong> and <strong>Try an example</strong>.</p>
+<div class="actions"><a class="button" href="index.html">Return to Start here</a></div>
+<details class="files"><summary>Install from a source checkout</summary>
+<p>For local development, download or clone the
+<a href="https://github.com/GeraltZeroZhong/ClaimTrace">ClaimTrace repository</a>.
+Run the installation commands from the folder containing <code>pyproject.toml</code>,
+replacing <code>pip install claimtrace==1.0</code> with <code>pip install .</code>.</p>
+<p>The tutorial download contains the reading guide and example data. Use the repository
+checkout for source installation.</p></details>
+<details class="files"><summary>Installation help</summary><h2>Setup help</h2>
+<table class="status-table">
+<thead>
+<tr>
+<th>What you see</th>
+<th>Next action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python launcher is unavailable</td>
+<td>Install Python 3.10 or newer, reopen the terminal, and check its version.</td>
+</tr>
+<tr>
+<td><code>No module named venv</code> or an unavailable <code>ensurepip</code> on Linux</td>
+<td>Install your distribution's Python venv package, then repeat the installation steps.</td>
+</tr>
+<tr>
+<td>pip asks for <code>pyproject.toml</code> or <code>setup.py</code></td>
+<td>Use <code>pip install claimtrace==1.0</code> to install the release. For source installation, run <code>pip install .</code> from the repository folder containing <code>pyproject.toml</code>.</td>
+</tr>
+<tr>
+<td><code>No module named claimtrace</code></td>
+<td>Run the install command with the same <code>.venv</code> Python used to launch the GUI.</td>
+</tr>
+<tr>
+<td>Port 8765 is occupied</td>
+<td>Add <code>--port 0</code> to the GUI command and open the newly printed address.</td>
+</tr>
+<tr>
+<td>The browser opens on another desktop or stays closed</td>
+<td>Add <code>--no-browser</code>, then open the printed address in your preferred browser.</td>
+</tr>
+<tr>
+<td>A saved package is hard to locate</td>
+<td>Check <code>claimtrace-workspace/</code> in the original launch folder, or use the path shown by <strong>Saved locally</strong>.</td>
+</tr>
+</tbody>
+</table>
+</details><footer><a href="sources.html">Data sources and attribution</a><br>ClaimTrace illustrated guide</footer></main></div><div id="copy-status" role="status" aria-live="polite"></div></body></html>

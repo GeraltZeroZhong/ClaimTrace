@@ -30,5 +30,29 @@ def test_packaged_schema_resources_match_runtime_models():
         (schema_dir / "validation-report.schema.json").read_text(encoding="utf-8")
     )
 
-    assert stored_semantic == semantic_layer_schema()
-    assert stored_report == validation_report_schema()
+    assert _equivalent_schema_form(stored_semantic) == _equivalent_schema_form(semantic_layer_schema())
+    assert _equivalent_schema_form(stored_report) == _equivalent_schema_form(validation_report_schema())
+
+
+def _equivalent_schema_form(value):
+    """Normalize only equivalent spellings emitted across supported Pydantic releases.
+
+    Pydantic 2.7 wraps enum references in allOf and omits the default
+    additionalProperties:true. Newer releases emit direct references and an
+    explicit true. Defaults, required fields and actual constraints still match
+    exactly, so this check continues to detect model/resource drift.
+    """
+    if isinstance(value, list):
+        return [_equivalent_schema_form(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {key: _equivalent_schema_form(item) for key, item in value.items()}
+    if result.get("additionalProperties") is True:
+        del result["additionalProperties"]
+    alternatives = result.get("allOf")
+    if (isinstance(alternatives, list) and len(alternatives) == 1
+            and isinstance(alternatives[0], dict) and set(alternatives[0]) == {"$ref"}
+            and "$ref" not in result):
+        result["$ref"] = alternatives[0]["$ref"]
+        del result["allOf"]
+    return result

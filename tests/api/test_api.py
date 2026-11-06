@@ -1,4 +1,5 @@
 import json
+import zipfile
 from pathlib import Path
 
 from PIL import Image
@@ -8,7 +9,7 @@ import pytest
 from claimtrace import _simple_yaml, export_package, init_package, load_package, validate_package
 from claimtrace.completion import apply_answers, package_answer_template
 from claimtrace.errors import PackageError
-from claimtrace.package.layout import read_completion_tasks
+from claimtrace.package.layout import read_completion_tasks, write_completion_tasks
 
 
 def write_png(path: Path) -> None:
@@ -34,6 +35,99 @@ def test_public_api_roundtrip(tmp_path: Path):
     assert report.overall_status == "pass"
     assert exported.exists()
     assert all(task.status == "answered" for task in read_completion_tasks(tmp_path / "pkg"))
+
+
+def test_partial_answers_preserve_completed_sections(tmp_path: Path):
+    source = Path("examples/simple-pymol-structure")
+    package = init_package(native=source / "figure_A.pml", out=tmp_path / "package")
+    package.complete_from_answers(source / "answers.yml")
+    tasks = read_completion_tasks(package.root)
+    next(task for task in tasks if task.section == "uncertainty").status = "waived"
+    write_completion_tasks(package.root, tasks)
+    before = {task.id: task.status for task in tasks}
+    patch = tmp_path / "patch.yml"
+    patch.write_text(_simple_yaml.dumps({"claim": {
+        "id": package.semantic_layer.claims[0].id, "figure_ref": "Figure 2A",
+    }, "evidence": [], "reuse": {}}), encoding="utf-8")
+
+    package.complete_from_answers(patch)
+
+    assert package.semantic_layer.claims[0].figure_ref == "Figure 2A"
+    assert {task.id: task.status for task in read_completion_tasks(package.root)} == before
+
+
+def test_partial_answers_keep_unvisited_sections_open(tmp_path: Path):
+    package = init_package(blank=True, out=tmp_path / "package")
+    patch = tmp_path / "patch.yml"
+    patch.write_text(_simple_yaml.dumps({"claim": {
+        "claim_text": "Chain A is shown as a cartoon.", "figure_ref": "Figure 1A",
+    }, "evidence": [], "reuse": {}}), encoding="utf-8")
+
+    package.complete_from_answers(patch)
+
+    states = {task.section: task.status for task in read_completion_tasks(package.root)}
+    assert states["claim"] == "answered"
+    assert states["evidence"] == "answered"
+    assert states["uncertainty"] == states["scene"] == "open"
+
+
+def test_duplicate_native_inputs_are_imported_once(tmp_path: Path, monkeypatch):
+    source = tmp_path / "scene.cxc"
+    source.write_text("open model.cif\ncolor #1 blue\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    package = init_package(native=[source, Path("scene.cxc"), source], out=tmp_path / "package")
+
+    assert len(package.semantic_layer.artifacts) == 1
+    assert len(package.semantic_layer.observed_scene_operations) == 2
+    assert not any(item.rule_id == "G3.REFERENCE.DUPLICATE_ID" for item in package.validate().findings)
+
+
+def test_add_claim_uses_unused_id_after_explicit_completion_id(tmp_path):
+    pkg = init_package(blank=True, out=tmp_path / "pkg")
+    apply_answers(pkg.root, pkg.semantic_layer, {"claim": {
+        "id": "claim:002", "claim_text": "The first claim.",
+        "claim_type": "simple_structure_view", "figure_ref": "Figure 1",
+    }})
+    claim = pkg.add_claim("The second claim.", claim_type="simple_structure_view", figure_ref="Figure 2")
+    identifiers = [item.id for item in load_package(pkg.root).semantic_layer.claims]
+    assert claim.id != "claim:002"
+    assert len(set(identifiers)) == 2
+    assert not any("DUPLICATE" in item.rule_id for item in pkg.validate().findings)
+
+
+@pytest.mark.parametrize("exporter", ["function", "method"])
+def test_export_infers_uppercase_zip_suffix(tmp_path, exporter):
+    pkg = init_package(blank=True, out=tmp_path / "pkg")
+    output = tmp_path / "shared.ZIP"
+    if exporter == "function":
+        export_package(pkg, output, mode="draft")
+    else:
+        pkg.export(output, mode="draft")
+    assert output.is_file()
+    with zipfile.ZipFile(output) as archive:
+        assert "semantic_layer.json" in archive.namelist()
+
+
+def test_complete_rejects_dangling_reference_without_package_changes(tmp_path):
+    pkg = init_package(blank=True, out=tmp_path / "pkg")
+    source = tmp_path / "observations.txt"
+    source.write_text("Recorded visual observation.")
+    answer = tmp_path / "answers.yml"
+    answer.write_text(_simple_yaml.dumps({
+        "claim": {"claim_text": "The panel shows a molecular view.", "figure_ref": "Figure 1"},
+        "evidence": [{
+            "method_name": "Visual inspection", "result_summary": "The source was reviewed.",
+            "source_artifact_ids": ["artifact:typo"],
+        }],
+        "artifacts": [{"path": str(source), "role": "evidence_document"}], "reuse": {},
+    }))
+    before = pkg.semantic_layer.model_dump()
+    files = {str(path.relative_to(pkg.root)): path.read_bytes() for path in pkg.root.rglob("*") if path.is_file()}
+    with pytest.raises(ValueError, match="artifact:typo"):
+        pkg.complete_from_answers(answer)
+    assert pkg.semantic_layer.model_dump() == before
+    assert {str(path.relative_to(pkg.root)): path.read_bytes() for path in pkg.root.rglob("*") if path.is_file()} == files
 
 
 def test_init_rejects_directory_or_wrong_native_format_before_writing(tmp_path: Path):
@@ -143,6 +237,28 @@ def test_render_artifact_is_not_guessed_across_multiple_scenes(tmp_path: Path):
     pkg.add_artifact(image, role="render_image", scene_id=first_scene.id)
     assert artifact.id in first_scene.render_artifact_ids
     assert artifact.id not in pkg.semantic_layer.scenes[1].render_artifact_ids
+
+
+def test_same_stem_images_link_to_distinct_native_scenes(tmp_path: Path):
+    natives, images = [], []
+    for name in ["front", "back"]:
+        native = tmp_path / f"{name}.pml"
+        native.write_text("show cartoon\n")
+        image = tmp_path / f"{name}.png"
+        write_png(image)
+        natives.append(native)
+        images.append(image)
+    extra = tmp_path / "overview.png"
+    write_png(extra)
+    pkg = init_package(native=natives, image=images + [extra], out=tmp_path / "pkg")
+    by_id = {item.id: item for item in pkg.semantic_layer.artifacts}
+    for scene in pkg.semantic_layer.scenes:
+        assert len(scene.render_artifact_ids) == 1
+        assert Path(by_id[scene.render_artifact_ids[0]].path).stem == Path(by_id[scene.native_artifact_ids[0]].path).stem
+    assert not any(
+        Path(by_id[aid].path).name == "overview.png"
+        for scene in pkg.semantic_layer.scenes for aid in scene.render_artifact_ids
+    )
 
 
 def test_multiple_claims_keep_their_evidence_and_uncertainty_separate(tmp_path: Path):

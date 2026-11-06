@@ -1,0 +1,7 @@
+# Direct runtime dependency minima; exercise together on Python 3.10.
+pydantic==2.7.0
+typer==0.16.0
+rich==13.0.0
+jsonschema==4.22.0
+PyYAML==6.0.1
+Pillow==10.1.0
